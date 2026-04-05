@@ -65,28 +65,64 @@ let pathFlow = null;   // Int8Array (-1=none, 0=up, 1=right, 2=down, 3=left)
 const DX = [0, 1, 0, -1];
 const DY = [-1, 0, 1, 0];
 
-// === BFS / PATHFINDING ===
-function computeBFS(tempGrid) {
+// === PATHFINDING (Dijkstra, prefers downward movement) ===
+// Direction costs from the MONSTER's perspective:
+//   down (toward goal) = 2, left/right = 3, up (away from goal) = 5
+// BFS expands from goal, so dir=0 (expand up) => monster goes down => cost 2
+const DIR_COST = [2, 3, 5, 3]; // up, right, down, left (from BFS expand direction)
+
+function computePath(tempGrid) {
   const g = tempGrid || grid;
   const dist = new Int32Array(COLS * ROWS).fill(-1);
   const flow = new Int8Array(COLS * ROWS).fill(-1);
-  const queue = [];
+
+  // Simple binary heap priority queue
+  const heap = [];
+  function heapPush(cost, idx) {
+    heap.push((cost << 16) | idx);
+    let i = heap.length - 1;
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (heap[parent] <= heap[i]) break;
+      [heap[parent], heap[i]] = [heap[i], heap[parent]];
+      i = parent;
+    }
+  }
+  function heapPop() {
+    const top = heap[0];
+    const last = heap.pop();
+    if (heap.length > 0) {
+      heap[0] = last;
+      let i = 0;
+      while (true) {
+        let smallest = i;
+        const l = 2 * i + 1, r = 2 * i + 2;
+        if (l < heap.length && heap[l] < heap[smallest]) smallest = l;
+        if (r < heap.length && heap[r] < heap[smallest]) smallest = r;
+        if (smallest === i) break;
+        [heap[i], heap[smallest]] = [heap[smallest], heap[i]];
+        i = smallest;
+      }
+    }
+    return top;
+  }
 
   // Seed: all bottom-row cells that are not towers
   for (let x = 0; x < COLS; x++) {
     const idx = (ROWS - 1) * COLS + x;
     if (g[idx] === 0) {
       dist[idx] = 0;
-      queue.push(idx);
+      heapPush(0, idx);
     }
   }
 
-  let head = 0;
-  while (head < queue.length) {
-    const idx = queue[head++];
+  while (heap.length > 0) {
+    const val = heapPop();
+    const d = val >> 16;
+    const idx = val & 0xFFFF;
+    if (d > dist[idx] && dist[idx] !== -1 && d !== 0) continue;
     const cx = idx % COLS;
     const cy = (idx - cx) / COLS;
-    const d = dist[idx];
 
     for (let dir = 0; dir < 4; dir++) {
       const nx = cx + DX[dir];
@@ -94,11 +130,12 @@ function computeBFS(tempGrid) {
       if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
       const ni = ny * COLS + nx;
       if (g[ni] !== 0) continue;
-      if (dist[ni] !== -1) continue;
-      dist[ni] = d + 1;
+      const nd = d + DIR_COST[dir];
+      if (dist[ni] !== -1 && nd >= dist[ni]) continue;
+      dist[ni] = nd;
       // Flow points from neighbor toward current cell (opposite direction)
       flow[ni] = (dir + 2) % 4;
-      queue.push(ni);
+      heapPush(nd, ni);
     }
   }
 
@@ -106,13 +143,13 @@ function computeBFS(tempGrid) {
 }
 
 function recomputePath() {
-  const result = computeBFS();
+  const result = computePath();
   pathDist = result.dist;
   pathFlow = result.flow;
 }
 
 function isTopRowReachable(tempGrid) {
-  const result = computeBFS(tempGrid);
+  const result = computePath(tempGrid);
   for (let x = 0; x < COLS; x++) {
     if (result.dist[x] !== -1) return true;
   }
