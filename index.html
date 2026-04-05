@@ -48,6 +48,10 @@ canvas {
 }
 #ui button:active { background: #444; }
 #ui button.selected { border-color: #fff; background: #333; }
+#btn-place { background: #1b5e20; border-color: #4caf50; color: #fff; }
+#btn-place:active { background: #2e7d32; }
+#btn-wave { background: #0d47a1; border-color: #42a5f5; color: #fff; }
+#btn-wave:active { background: #1565c0; }
 </style>
 </head>
 <body>
@@ -57,7 +61,9 @@ canvas {
   <button id="btn-range" data-tower="1">2: Range (15g)</button>
   <button id="btn-dot" data-tower="2">3: DOT (20g)</button>
   <button id="btn-pierce" data-tower="3">4: Pierce (25g)</button>
-  <button id="btn-wave">Start Wave (W)</button>
+  <button id="btn-barricade" data-tower="4">5: Wall (3g)</button>
+  <button id="btn-place">Place</button>
+  <button id="btn-wave">Wave (W)</button>
 </div>
 <script src="game.js"></script>
 </body>

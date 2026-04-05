@@ -8,10 +8,11 @@ const FPS = 30;
 const TICK_RATE = 1000 / FPS;
 
 const TOWER_TYPES = [
-  { name: 'Melee',  letter: 'M', color: '#4fc3f7', bg: '#1565c0', range: 1, damage: 3, fireRate: 15, cost: 10, hp: 10 },
-  { name: 'Range',  letter: 'R', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 5  },
-  { name: 'DOT',    letter: 'D', color: '#81c784', bg: '#2e7d32', range: 1, damage: 0, fireRate: 30, cost: 20, hp: 8, dot: { dps: 1, duration: 3 * FPS } },
-  { name: 'Pierce', letter: 'P', color: '#ce93d8', bg: '#6a1b9a', range: 5, damage: 1, fireRate: 45, cost: 25, hp: 5, pierce: true },
+  { name: 'Melee',     letter: 'M', color: '#4fc3f7', bg: '#1565c0', range: 1, damage: 3, fireRate: 15, cost: 10, hp: 10 },
+  { name: 'Range',     letter: 'R', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 5  },
+  { name: 'DOT',       letter: 'D', color: '#81c784', bg: '#2e7d32', range: 1, damage: 0, fireRate: 30, cost: 20, hp: 8, dot: { dps: 1, duration: 3 * FPS } },
+  { name: 'Pierce',    letter: 'P', color: '#ce93d8', bg: '#6a1b9a', range: 5, damage: 1, fireRate: 45, cost: 25, hp: 5, pierce: true },
+  { name: 'Barricade', letter: 'B', color: '#90a4ae', bg: '#455a64', range: 0, damage: 0, fireRate: 9999, cost: 3, hp: 15, barricade: true },
 ];
 
 const MONSTER_TYPES = [
@@ -196,6 +197,7 @@ function distToTower(mx, my, tower) {
 function updateTowers() {
   for (const tower of state.towers) {
     const type = TOWER_TYPES[tower.typeIdx];
+    if (type.barricade) continue;
     if (state.frame - tower.lastFire < type.fireRate) continue;
 
     const tcx = tower.x + 1;  // center of 2x2
@@ -491,11 +493,11 @@ function setupInput() {
       case '2': selectTowerType(1); break;
       case '3': selectTowerType(2); break;
       case '4': selectTowerType(3); break;
+      case '5': selectTowerType(4); break;
     }
   });
 
-  // Touch
-  let lastTap = { x: -1, y: -1, time: 0 };
+  // Touch - tap moves cursor, Place button confirms
   canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
     const touch = e.touches[0];
@@ -504,27 +506,17 @@ function setupInput() {
     const scaleY = CANVAS_H / rect.height;
     const tx = Math.floor((touch.clientX - rect.left) * scaleX / TILE_SIZE);
     const ty = Math.floor((touch.clientY - rect.top) * scaleY / TILE_SIZE);
-    const cx = Math.max(0, Math.min(COLS - 2, tx));
-    const cy = Math.max(0, Math.min(ROWS - 2, ty));
-
-    const now = Date.now();
-    if (cx === lastTap.x && cy === lastTap.y && now - lastTap.time < 400) {
-      // Double tap - place tower
-      state.cursor.x = cx;
-      state.cursor.y = cy;
-      placeTower();
-      lastTap = { x: -1, y: -1, time: 0 };
-    } else {
-      // Single tap - move cursor
-      state.cursor.x = cx;
-      state.cursor.y = cy;
-      state.cursor.visible = true;
-      lastTap = { x: cx, y: cy, time: now };
-    }
+    state.cursor.x = Math.max(0, Math.min(COLS - 2, tx));
+    state.cursor.y = Math.max(0, Math.min(ROWS - 2, ty));
+    state.cursor.visible = true;
   });
 
   // UI buttons
   document.getElementById('btn-wave').addEventListener('click', startWave);
+  document.getElementById('btn-place').addEventListener('click', () => {
+    state.cursor.visible = true;
+    placeTower();
+  });
   document.querySelectorAll('#ui button[data-tower]').forEach((btn) => {
     btn.addEventListener('click', () => selectTowerType(parseInt(btn.dataset.tower)));
   });
