@@ -64,16 +64,20 @@ const state = {
 };
 
 let pathDist = null;   // Int32Array
-let pathFlow = null;   // Int8Array (-1=none, 0=up, 1=right, 2=down, 3=left)
+let pathFlow = null;   // Int8Array (-1=none, 0-7 directions)
 
-const DX = [0, 1, 0, -1];
-const DY = [-1, 0, 1, 0];
+// 8 directions: 0=up, 1=up-right, 2=right, 3=down-right, 4=down, 5=down-left, 6=left, 7=up-left
+const DX = [0, 1, 1, 1, 0, -1, -1, -1];
+const DY = [-1, -1, 0, 1, 1, 1, 0, -1];
 
 // === PATHFINDING (Dijkstra, prefers downward movement) ===
-// Direction costs from the MONSTER's perspective:
-//   down (toward goal) = 2, left/right = 3, up (away from goal) = 5
-// BFS expands from goal, so dir=0 (expand up) => monster goes down => cost 2
-const DIR_COST = [2, 3, 5, 3]; // up, right, down, left (from BFS expand direction)
+// Costs from BFS expand direction (monster moves opposite):
+//   expand up (dir=0) => monster goes down => cheap (2)
+//   expand diag-up (dir=1,7) => monster goes diag-down => cheap (3)
+//   expand left/right (dir=2,6) => monster goes sideways => moderate (4)
+//   expand diag-down (dir=3,5) => monster goes diag-up => expensive (6)
+//   expand down (dir=4) => monster goes up => most expensive (7)
+const DIR_COST = [2, 3, 4, 6, 7, 6, 4, 3];
 
 function computePath(tempGrid) {
   const g = tempGrid || grid;
@@ -128,17 +132,23 @@ function computePath(tempGrid) {
     const cx = idx % COLS;
     const cy = (idx - cx) / COLS;
 
-    for (let dir = 0; dir < 4; dir++) {
+    for (let dir = 0; dir < 8; dir++) {
       const nx = cx + DX[dir];
       const ny = cy + DY[dir];
       if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
       const ni = ny * COLS + nx;
       if (g[ni] !== 0) continue;
+      // Diagonal: require both adjacent cardinal cells to be free (no corner-cutting)
+      if (dir % 2 === 1) {
+        const adj1 = g[cy * COLS + nx];  // horizontal neighbor
+        const adj2 = g[ny * COLS + cx];  // vertical neighbor
+        if (adj1 !== 0 || adj2 !== 0) continue;
+      }
       const nd = d + DIR_COST[dir];
       if (dist[ni] !== -1 && nd >= dist[ni]) continue;
       dist[ni] = nd;
       // Flow points from neighbor toward current cell (opposite direction)
-      flow[ni] = (dir + 2) % 4;
+      flow[ni] = (dir + 4) % 8;
       heapPush(nd, ni);
     }
   }
@@ -419,26 +429,31 @@ function updateMonsters() {
     } else {
       // Follow flow map
       m.attacking = null;
-      const dx = DX[flow];
-      const dy = DY[flow];
-      // Snap to tile center on the axis perpendicular to movement
-      // This prevents diagonal-looking movement when flow direction changes
-      if (dx !== 0) {
-        // Moving horizontally: snap y toward tile center
+      const fdx = DX[flow];
+      const fdy = DY[flow];
+      const isDiag = fdx !== 0 && fdy !== 0;
+      // Diagonal movement: normalize speed so diagonal isn't faster
+      const spd = isDiag ? m.speed * 0.707 : m.speed;
+      if (isDiag) {
+        // Diagonal: move both axes
+        m.x += fdx * spd;
+        m.y += fdy * spd;
+      } else if (fdx !== 0) {
+        // Horizontal: snap y toward tile center
         const centerY = tileY + 0.5;
         const diffY = centerY - m.y;
         if (Math.abs(diffY) > 0.01) {
           m.y += Math.sign(diffY) * Math.min(Math.abs(diffY), m.speed);
         }
-        m.x += dx * m.speed;
+        m.x += fdx * m.speed;
       } else {
-        // Moving vertically: snap x toward tile center
+        // Vertical: snap x toward tile center
         const centerX = tileX + 0.5;
         const diffX = centerX - m.x;
         if (Math.abs(diffX) > 0.01) {
           m.x += Math.sign(diffX) * Math.min(Math.abs(diffX), m.speed);
         }
-        m.y += dy * m.speed;
+        m.y += fdy * m.speed;
       }
     }
   }
