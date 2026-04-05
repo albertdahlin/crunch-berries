@@ -480,30 +480,16 @@ function startWave() {
   if (state.phase !== 'PLACE') return;
   state.wave++;
   const w = getWaveConfig(state.wave);
-  state.spawnQueue = [];
+  // Spawn all monsters at once
   w.counts.forEach((count, i) => {
-    for (let j = 0; j < count; j++) state.spawnQueue.push(i);
+    for (let j = 0; j < count; j++) spawnMonster(i);
   });
-  // Shuffle spawn queue
-  for (let i = state.spawnQueue.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [state.spawnQueue[i], state.spawnQueue[j]] = [state.spawnQueue[j], state.spawnQueue[i]];
-  }
-  state.spawnTimer = 0;
   state.phase = 'WAVE';
 }
 
 function updateSpawning() {
   if (state.phase !== 'WAVE') return;
-  const interval = getWaveConfig(state.wave).interval;
-
-  if (state.spawnQueue.length > 0) {
-    state.spawnTimer++;
-    if (state.spawnTimer >= interval) {
-      state.spawnTimer = 0;
-      spawnMonster(state.spawnQueue.shift());
-    }
-  } else if (state.monsters.length === 0) {
+  if (state.monsters.length === 0) {
     // Wave complete
     state.phase = 'PLACE';
     state.gold += 10;  // wave completion bonus
