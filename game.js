@@ -16,17 +16,17 @@ const TOWER_TYPES = [
 ];
 
 const MONSTER_TYPES = [
-  { name: 'Normal', letter: 'N', color: '#ef5350', hp: 6,  speed: 0.08, reward: 5  },
-  { name: 'Fast',   letter: 'F', color: '#ff8a65', hp: 3,  speed: 0.16, reward: 7  },
-  { name: 'Tank',   letter: 'H', color: '#ab47bc', hp: 15, speed: 0.05, reward: 12 },
+  { name: 'Normal', letter: 'N', color: '#ef5350', hp: 12, speed: 0.08, reward: 5  },
+  { name: 'Fast',   letter: 'F', color: '#ff8a65', hp: 6,  speed: 0.16, reward: 7  },
+  { name: 'Tank',   letter: 'H', color: '#ab47bc', hp: 30, speed: 0.05, reward: 12 },
 ];
 
 const WAVES = [
-  { counts: [6, 0, 0], interval: 40 },
-  { counts: [8, 2, 0], interval: 35 },
-  { counts: [6, 4, 1], interval: 30 },
-  { counts: [8, 5, 2], interval: 28 },
-  { counts: [10, 6, 3], interval: 25 },
+  { counts: [12, 0, 0], interval: 40 },
+  { counts: [16, 4, 0], interval: 35 },
+  { counts: [12, 8, 2], interval: 30 },
+  { counts: [16, 10, 4], interval: 28 },
+  { counts: [20, 12, 6], interval: 25 },
 ];
 
 // === CANVAS SETUP ===
