@@ -415,8 +415,27 @@ function updateMonsters() {
     } else {
       // Follow flow map
       m.attacking = null;
-      m.x += DX[flow] * m.speed;
-      m.y += DY[flow] * m.speed;
+      const dx = DX[flow];
+      const dy = DY[flow];
+      // Snap to tile center on the axis perpendicular to movement
+      // This prevents diagonal-looking movement when flow direction changes
+      if (dx !== 0) {
+        // Moving horizontally: snap y toward tile center
+        const centerY = tileY + 0.5;
+        const diffY = centerY - m.y;
+        if (Math.abs(diffY) > 0.01) {
+          m.y += Math.sign(diffY) * Math.min(Math.abs(diffY), m.speed);
+        }
+        m.x += dx * m.speed;
+      } else {
+        // Moving vertically: snap x toward tile center
+        const centerX = tileX + 0.5;
+        const diffX = centerX - m.x;
+        if (Math.abs(diffX) > 0.01) {
+          m.x += Math.sign(diffX) * Math.min(Math.abs(diffX), m.speed);
+        }
+        m.y += dy * m.speed;
+      }
     }
   }
 
