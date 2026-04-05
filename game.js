@@ -21,13 +21,17 @@ const MONSTER_TYPES = [
   { name: 'Tank',   letter: 'H', color: '#ab47bc', hp: 30, speed: 0.05, reward: 12 },
 ];
 
-const WAVES = [
-  { counts: [12, 0, 0], interval: 40 },
-  { counts: [16, 4, 0], interval: 35 },
-  { counts: [12, 8, 2], interval: 30 },
-  { counts: [16, 10, 4], interval: 28 },
-  { counts: [20, 12, 6], interval: 25 },
-];
+// Wave generation: monsters double every 2 waves
+// Wave 1: 6 Normal. Fast from wave 2, Tanks from wave 3.
+function getWaveConfig(waveNum) {
+  // Doubling factor: 2^(floor((wave-1)/2))  → wave 1-2: x1, 3-4: x2, 5-6: x4, 7-8: x8...
+  const scale = Math.pow(2, Math.floor((waveNum - 1) / 2));
+  const normal = Math.round(6 * scale);
+  const fast = waveNum >= 2 ? Math.round(3 * scale) : 0;
+  const tank = waveNum >= 3 ? Math.round(2 * scale) : 0;
+  const interval = Math.max(10, 40 - (waveNum - 1) * 3);
+  return { counts: [normal, fast, tank], interval };
+}
 
 // === CANVAS SETUP ===
 const canvas = document.getElementById('game');
@@ -459,21 +463,8 @@ function updateMonsters() {
 // === WAVE LOGIC ===
 function startWave() {
   if (state.phase !== 'PLACE') return;
-  if (state.wave >= WAVES.length) {
-    // Generate endless waves
-    const w = WAVES[WAVES.length - 1];
-    const scale = 1 + (state.wave - WAVES.length + 1) * 0.3;
-    state.spawnQueue = [];
-    w.counts.forEach((count, i) => {
-      for (let j = 0; j < Math.ceil(count * scale); j++) state.spawnQueue.push(i);
-    });
-    state.spawnTimer = 0;
-    state.phase = 'WAVE';
-    state.wave++;
-    return;
-  }
-
-  const w = WAVES[state.wave];
+  state.wave++;
+  const w = getWaveConfig(state.wave);
   state.spawnQueue = [];
   w.counts.forEach((count, i) => {
     for (let j = 0; j < count; j++) state.spawnQueue.push(i);
@@ -485,13 +476,11 @@ function startWave() {
   }
   state.spawnTimer = 0;
   state.phase = 'WAVE';
-  state.wave++;
 }
 
 function updateSpawning() {
   if (state.phase !== 'WAVE') return;
-  const waveIdx = Math.min(state.wave - 1, WAVES.length - 1);
-  const interval = WAVES[waveIdx].interval;
+  const interval = getWaveConfig(state.wave).interval;
 
   if (state.spawnQueue.length > 0) {
     state.spawnTimer++;
