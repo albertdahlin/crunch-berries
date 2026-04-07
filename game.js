@@ -34,6 +34,110 @@ function getWaveConfig(waveNum) {
   return { counts: [normal, fast, tank], interval };
 }
 
+// === MAPS ===
+const MAPS = [
+  {
+    name: 'Empty',
+    desc: 'Open field, build freely',
+    setup: function() { /* nothing */ }
+  },
+  {
+    name: 'Corridor',
+    desc: 'Barricade walls form corridors',
+    setup: function() {
+      const wallX1 = 6;
+      const wallX2 = 16;
+      for (let y = 4; y < ROWS - 4; y += 2) {
+        if (y % 20 < 16) placeMapBarricade(wallX1, y);
+        if ((y + 10) % 20 < 16) placeMapBarricade(wallX2, y);
+      }
+    }
+  },
+  {
+    name: 'Random',
+    desc: 'Scattered obstacles',
+    setup: function() {
+      let placed = 0;
+      let attempts = 0;
+      while (placed < 30 && attempts < 200) {
+        attempts++;
+        const x = Math.floor(Math.random() * (COLS - 1));
+        const y = 2 + Math.floor(Math.random() * (ROWS - 5));
+        if (!canPlaceTower(x, y)) continue;
+        const tempGrid = new Uint8Array(grid);
+        for (let dy = 0; dy < 2; dy++)
+          for (let dx = 0; dx < 2; dx++)
+            tempGrid[(y + dy) * COLS + (x + dx)] = 1;
+        if (!isTopRowReachable(tempGrid)) continue;
+        placeMapBarricade(x, y);
+        placed++;
+      }
+    }
+  },
+  {
+    name: 'Winding',
+    desc: 'Follow the road',
+    setup: function() {
+      const path = new Uint8Array(COLS * ROWS);
+      const roadW = 4;
+      let cx = 2;
+      let dir = 1;
+      for (let y = 2; y < ROWS - 2; y++) {
+        for (let dx = 0; dx < roadW; dx++) {
+          const rx = cx + dx;
+          if (rx >= 0 && rx < COLS) path[y * COLS + rx] = 1;
+        }
+        if (y % 10 === 0 && y > 2 && y < ROWS - 4) {
+          dir = -dir;
+          const newCx = dir > 0 ? 2 : COLS - roadW - 2;
+          const minX = Math.min(cx, newCx);
+          const maxX = Math.max(cx + roadW, newCx + roadW);
+          for (let x = minX; x < maxX; x++) {
+            if (x >= 0 && x < COLS) {
+              path[y * COLS + x] = 1;
+              path[(y + 1) * COLS + x] = 1;
+            }
+          }
+          cx = newCx;
+          y++;
+          for (let dx = 0; dx < roadW; dx++) {
+            const rx = cx + dx;
+            if (rx >= 0 && rx < COLS) path[y * COLS + rx] = 1;
+          }
+        }
+      }
+      for (let x = 0; x < COLS; x++) {
+        path[x] = 1;
+        path[(ROWS - 1) * COLS + x] = 1;
+      }
+      for (let y = 2; y < ROWS - 3; y += 2) {
+        for (let x = 0; x < COLS - 1; x += 2) {
+          if (path[y * COLS + x] || path[y * COLS + x + 1] ||
+              path[(y + 1) * COLS + x] || path[(y + 1) * COLS + x + 1]) continue;
+          if (canPlaceTower(x, y)) {
+            placeMapBarricade(x, y);
+          }
+        }
+      }
+    }
+  },
+];
+
+function placeMapBarricade(x, y) {
+  const barricadeIdx = TOWER_TYPES.findIndex(t => t.barricade);
+  const type = TOWER_TYPES[barricadeIdx];
+  for (let dy = 0; dy < 2; dy++)
+    for (let dx = 0; dx < 2; dx++)
+      grid[(y + dy) * COLS + (x + dx)] = 1;
+  state.towers.push({
+    x: x, y: y,
+    typeIdx: barricadeIdx,
+    hp: type.hp,
+    maxHp: type.hp,
+    lastFire: 0,
+  });
+}
+
 // === CANVAS SETUP ===
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -65,7 +169,8 @@ const state = {
   gold: 50,
   score: 0,
   frame: 0,
-  phase: 'PLACE',   // PLACE | WAVE | GAMEOVER
+  phase: 'MAP_SELECT', // MAP_SELECT | PLACE | WAVE | GAMEOVER
+  selectedMap: 0,
   spawnQueue: [],
   spawnTimer: 0,
   message: '',
@@ -531,8 +636,25 @@ function setupInput() {
     const rect = canvas.getBoundingClientRect();
     const scaleX = CANVAS_W / rect.width;
     const scaleY = CANVAS_H / rect.height;
-    state.cursor.x = Math.floor((e.clientX - rect.left) * scaleX / TILE_SIZE);
-    state.cursor.y = Math.floor((e.clientY - rect.top) * scaleY / TILE_SIZE);
+    const clickX = (e.clientX - rect.left) * scaleX;
+    const clickY = (e.clientY - rect.top) * scaleY;
+
+    if (state.phase === 'MAP_SELECT') {
+      const boxH = TILE_SIZE * 4;
+      const startY = TILE_SIZE * 6;
+      for (let i = 0; i < MAPS.length; i++) {
+        const y = startY + i * (boxH + TILE_SIZE);
+        if (clickY >= y && clickY <= y + boxH) {
+          state.selectedMap = i;
+          startGame(i);
+          return;
+        }
+      }
+      return;
+    }
+
+    state.cursor.x = Math.floor(clickX / TILE_SIZE);
+    state.cursor.y = Math.floor(clickY / TILE_SIZE);
     state.cursor.x = Math.max(0, Math.min(COLS - 2, state.cursor.x));
     state.cursor.y = Math.max(0, Math.min(ROWS - 2, state.cursor.y));
     placeTower();
@@ -540,6 +662,19 @@ function setupInput() {
 
   // Keyboard
   document.addEventListener('keydown', (e) => {
+    if (state.phase === 'MAP_SELECT') {
+      switch (e.key) {
+        case 'ArrowUp': state.selectedMap = Math.max(0, state.selectedMap - 1); e.preventDefault(); break;
+        case 'ArrowDown': state.selectedMap = Math.min(MAPS.length - 1, state.selectedMap + 1); e.preventDefault(); break;
+        case ' ': case 'Enter': startGame(state.selectedMap); e.preventDefault(); break;
+        case '1': case '2': case '3': case '4': {
+          const i = parseInt(e.key) - 1;
+          if (i < MAPS.length) { state.selectedMap = i; startGame(i); }
+          break;
+        }
+      }
+      return;
+    }
     switch (e.key) {
       case 'ArrowUp':    state.cursor.y = Math.max(0, state.cursor.y - 1); state.cursor.visible = true; e.preventDefault(); break;
       case 'ArrowDown':  state.cursor.y = Math.min(ROWS - 2, state.cursor.y + 1); state.cursor.visible = true; e.preventDefault(); break;
@@ -573,8 +708,26 @@ function setupInput() {
     const rect = canvas.getBoundingClientRect();
     const scaleX = CANVAS_W / rect.width;
     const scaleY = CANVAS_H / rect.height;
-    const tx = Math.floor((touch.clientX - rect.left) * scaleX / TILE_SIZE);
-    const ty = Math.floor((touch.clientY - rect.top) * scaleY / TILE_SIZE);
+    const tapX = (touch.clientX - rect.left) * scaleX;
+    const tapY = (touch.clientY - rect.top) * scaleY;
+
+    if (state.phase === 'MAP_SELECT') {
+      // Check which map box was tapped
+      const boxH = TILE_SIZE * 4;
+      const startY = TILE_SIZE * 6;
+      for (let i = 0; i < MAPS.length; i++) {
+        const y = startY + i * (boxH + TILE_SIZE);
+        if (tapY >= y && tapY <= y + boxH) {
+          state.selectedMap = i;
+          startGame(i);
+          return;
+        }
+      }
+      return;
+    }
+
+    const tx = Math.floor(tapX / TILE_SIZE);
+    const ty = Math.floor(tapY / TILE_SIZE);
     state.cursor.x = Math.max(0, Math.min(COLS - 2, tx));
     state.cursor.y = Math.max(0, Math.min(ROWS - 2, ty));
     state.cursor.visible = true;
@@ -609,6 +762,11 @@ function showMessage(msg) {
 function render() {
   ctx.fillStyle = '#0e0e1a';
   ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  if (state.phase === 'MAP_SELECT') {
+    drawMapSelect();
+    return;
+  }
 
   drawGrid();
   drawTowers();
@@ -771,6 +929,58 @@ function drawEffects() {
   }
 }
 
+function drawMapSelect() {
+  const titleSize = Math.floor(TILE_SIZE * 1.5);
+  const itemSize = Math.floor(TILE_SIZE * 0.9);
+  const descSize = Math.floor(TILE_SIZE * 0.6);
+  const boxH = TILE_SIZE * 4;
+  const boxW = COLS * TILE_SIZE * 0.8;
+  const startY = TILE_SIZE * 6;
+  const centerX = CANVAS_W / 2;
+
+  // Title
+  ctx.font = 'bold ' + titleSize + 'px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#81d4fa';
+  ctx.fillText('SELECT MAP', centerX, TILE_SIZE * 3);
+
+  // Map options
+  for (let i = 0; i < MAPS.length; i++) {
+    const map = MAPS[i];
+    const y = startY + i * (boxH + TILE_SIZE);
+    const isSelected = i === state.selectedMap;
+
+    // Box background
+    ctx.fillStyle = isSelected ? '#1a2a3a' : '#111';
+    ctx.fillRect(centerX - boxW / 2, y, boxW, boxH);
+
+    // Box border
+    ctx.strokeStyle = isSelected ? '#4fc3f7' : '#333';
+    ctx.lineWidth = isSelected ? 2 : 1;
+    ctx.strokeRect(centerX - boxW / 2, y, boxW, boxH);
+
+    // Map name
+    ctx.font = 'bold ' + itemSize + 'px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = isSelected ? '#fff' : '#888';
+    ctx.fillText((i + 1) + '. ' + map.name, centerX, y + boxH * 0.35);
+
+    // Description
+    ctx.font = descSize + 'px monospace';
+    ctx.fillStyle = isSelected ? '#aaa' : '#555';
+    ctx.fillText(map.desc, centerX, y + boxH * 0.7);
+  }
+
+  // Instructions
+  ctx.font = descSize + 'px monospace';
+  ctx.fillStyle = '#555';
+  ctx.textAlign = 'center';
+  const instrY = startY + MAPS.length * (boxH + TILE_SIZE) + TILE_SIZE;
+  ctx.fillText('Tap a map or press 1-' + MAPS.length + ' to select, then Enter/tap to start', centerX, instrY);
+}
+
 function drawUI() {
   // Top bar - scale with tile size
   const barH = TILE_SIZE;
@@ -859,7 +1069,7 @@ function gameLoop(timestamp) {
   accumulator += dt;
 
   while (accumulator >= TICK_RATE) {
-    if (state.phase !== 'GAMEOVER') {
+    if (state.phase !== 'GAMEOVER' && state.phase !== 'MAP_SELECT') {
       update();
     }
     accumulator -= TICK_RATE;
@@ -870,8 +1080,31 @@ function gameLoop(timestamp) {
 }
 
 // === INIT ===
-function init() {
+function startGame(mapIdx) {
+  // Clear grid
+  grid.fill(0);
+  state.towers.length = 0;
+  state.monsters.length = 0;
+  state.effects.length = 0;
+  state.wave = 0;
+  state.lives = 20;
+  state.gold = 50;
+  state.score = 0;
+  state.frame = 0;
+  state.cursor = { x: 12, y: 24, visible: false };
+  state.selectedTower = 0;
+  state.message = '';
+  state.messageTimer = 0;
+
+  // Apply map
+  MAPS[mapIdx].setup();
   recomputePath();
+  state.phase = 'PLACE';
+  document.getElementById('ui').style.display = 'flex';
+}
+
+function init() {
+  document.getElementById('ui').style.display = 'none';
   setupInput();
   requestAnimationFrame(gameLoop);
 }
