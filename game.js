@@ -502,7 +502,7 @@ function updateMonsters() {
     if (tileY >= ROWS - 1) {
       m.hp = 0;
       state.lives--;
-      if (state.lives <= 0) state.phase = 'GAMEOVER';
+      if (state.lives <= 0) { state.phase = 'GAMEOVER'; releaseWakeLock(); }
       continue;
     }
 
@@ -599,6 +599,7 @@ function startWave() {
     for (let j = 0; j < count; j++) spawnMonster(i);
   });
   state.phase = 'WAVE';
+  requestWakeLock();
 }
 
 function updateSpawning() {
@@ -606,6 +607,7 @@ function updateSpawning() {
   if (state.monsters.length === 0) {
     // Wave complete
     state.phase = 'PLACE';
+    releaseWakeLock();
     state.gold += 10;  // wave completion bonus
     showMessage('Wave ' + (state.wave) + ' complete! +10g');
   }
@@ -1051,6 +1053,21 @@ function drawUI() {
     ctx.fillText('Refresh to restart', CANVAS_W / 2, CANVAS_H / 2 + TILE_SIZE * 1.5);
   }
 }
+
+// === WAKE LOCK ===
+let wakeLock = null;
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try { wakeLock = await navigator.wakeLock.request('screen'); }
+  catch (e) { /* user denied or not supported */ }
+}
+async function releaseWakeLock() {
+  if (wakeLock) { await wakeLock.release(); wakeLock = null; }
+}
+// Re-acquire wake lock when page becomes visible again (lock auto-releases on tab switch)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && state.phase === 'WAVE') requestWakeLock();
+});
 
 // === GAME LOOP ===
 function update() {
