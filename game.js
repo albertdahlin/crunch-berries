@@ -1,4 +1,5 @@
 // === CONSTANTS ===
+const VERSION = '__VERSION__';
 const COLS = 24;
 const ROWS = 48;
 const FPS = 30;
@@ -794,6 +795,10 @@ function drawUI() {
   // Score
   ctx.fillStyle = '#aaa';
   ctx.fillText('S:' + state.score, 160, 2);
+
+  // Version
+  ctx.fillStyle = '#555';
+  ctx.fillText('v' + VERSION, 210, 2);
 
   // Phase
   ctx.fillStyle = state.phase === 'WAVE' ? '#ff9800' : state.phase === 'GAMEOVER' ? '#f44336' : '#4caf50';

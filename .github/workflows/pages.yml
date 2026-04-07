@@ -17,6 +17,12 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Inject version number
+        run: |
+          VERSION=$(git rev-list --count HEAD)
+          sed -i "s/__VERSION__/$VERSION/" game.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
