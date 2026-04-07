@@ -277,14 +277,14 @@ function updateTowers() {
       }
       if (!nearest) continue;
 
-      // Pick cardinal direction
+      // Pick cardinal direction (using 8-dir indices: 0=up, 2=right, 4=down, 6=left)
       const dx = nearest.x - tcx;
       const dy = nearest.y - tcy;
       let dir;
       if (Math.abs(dx) > Math.abs(dy)) {
-        dir = dx > 0 ? 1 : 3;
+        dir = dx > 0 ? 2 : 6;
       } else {
-        dir = dy > 0 ? 2 : 0;
+        dir = dy > 0 ? 4 : 0;
       }
 
       // Hit all monsters in the corridor
@@ -295,9 +295,9 @@ function updateTowers() {
         const ry = m.y - tcy;
         let inCorridor = false;
         if (dir === 0 && Math.abs(rx) < 1 && ry >= -type.range && ry <= 0) inCorridor = true;
-        if (dir === 2 && Math.abs(rx) < 1 && ry >= 0 && ry <= type.range) inCorridor = true;
-        if (dir === 1 && Math.abs(ry) < 1 && rx >= 0 && rx <= type.range) inCorridor = true;
-        if (dir === 3 && Math.abs(ry) < 1 && rx >= -type.range && rx <= 0) inCorridor = true;
+        if (dir === 4 && Math.abs(rx) < 1 && ry >= 0 && ry <= type.range) inCorridor = true;
+        if (dir === 2 && Math.abs(ry) < 1 && rx >= 0 && rx <= type.range) inCorridor = true;
+        if (dir === 6 && Math.abs(ry) < 1 && rx >= -type.range && rx <= 0) inCorridor = true;
         if (inCorridor) {
           m.hp -= type.damage;
           hit = true;
