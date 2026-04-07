@@ -772,44 +772,51 @@ function drawEffects() {
 }
 
 function drawUI() {
-  // Top bar background
-  ctx.fillStyle = 'rgba(0,0,0,0.7)';
-  ctx.fillRect(0, 0, CANVAS_W, 14);
+  // Top bar - scale with tile size
+  const barH = TILE_SIZE;
+  const fontSize = Math.max(10, Math.floor(TILE_SIZE * 0.7));
+  const pad = Math.floor(TILE_SIZE * 0.2);
+  const col = Math.floor(CANVAS_W / 6);  // divide top bar into 6 columns
 
-  ctx.font = '10px monospace';
-  ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(0, 0, CANVAS_W, barH);
+
+  ctx.font = fontSize + 'px monospace';
+  ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
+  const cy = barH / 2;
 
   // Gold
   ctx.fillStyle = '#ffd700';
-  ctx.fillText('G:' + state.gold, 4, 2);
+  ctx.fillText('G:' + state.gold, pad, cy);
 
   // Lives
   ctx.fillStyle = '#ef5350';
-  ctx.fillText('L:' + state.lives, 60, 2);
+  ctx.fillText('L:' + state.lives, col, cy);
 
   // Wave
   ctx.fillStyle = '#81d4fa';
-  ctx.fillText('W:' + state.wave, 110, 2);
+  ctx.fillText('W:' + state.wave, col * 2, cy);
 
   // Score
   ctx.fillStyle = '#aaa';
-  ctx.fillText('S:' + state.score, 160, 2);
+  ctx.fillText('S:' + state.score, col * 3, cy);
 
   // Version
   ctx.fillStyle = '#555';
-  ctx.fillText('v' + VERSION, 210, 2);
+  ctx.fillText('v' + VERSION, col * 4, cy);
 
   // Phase
   ctx.fillStyle = state.phase === 'WAVE' ? '#ff9800' : state.phase === 'GAMEOVER' ? '#f44336' : '#4caf50';
   ctx.textAlign = 'right';
-  ctx.fillText(state.phase === 'PLACE' ? 'PLACE TOWERS' : state.phase === 'WAVE' ? 'WAVE ' + state.wave : 'GAME OVER', CANVAS_W - 4, 2);
+  ctx.fillText(state.phase === 'PLACE' ? 'PLACE TOWERS' : state.phase === 'WAVE' ? 'WAVE ' + state.wave : 'GAME OVER', CANVAS_W - pad, cy);
 
   // Message
   if (state.messageTimer > 0) {
+    const msgH = TILE_SIZE * 1.5;
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.fillRect(0, CANVAS_H / 2 - 12, CANVAS_W, 24);
-    ctx.font = '12px monospace';
+    ctx.fillRect(0, CANVAS_H / 2 - msgH / 2, CANVAS_W, msgH);
+    ctx.font = fontSize + 'px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#fff';
@@ -819,19 +826,19 @@ function drawUI() {
 
   // Game over overlay
   if (state.phase === 'GAMEOVER') {
+    const goFont = Math.floor(TILE_SIZE * 1.5);
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-    ctx.font = 'bold 20px monospace';
+    ctx.font = 'bold ' + goFont + 'px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#f44336';
-    ctx.fillText('GAME OVER', CANVAS_W / 2, CANVAS_H / 2 - 20);
-    ctx.font = '14px monospace';
+    ctx.fillText('GAME OVER', CANVAS_W / 2, CANVAS_H / 2 - TILE_SIZE * 1.5);
+    ctx.font = fontSize + 'px monospace';
     ctx.fillStyle = '#ccc';
-    ctx.fillText('Score: ' + state.score, CANVAS_W / 2, CANVAS_H / 2 + 10);
-    ctx.font = '10px monospace';
+    ctx.fillText('Score: ' + state.score, CANVAS_W / 2, CANVAS_H / 2);
     ctx.fillStyle = '#888';
-    ctx.fillText('Refresh to restart', CANVAS_W / 2, CANVAS_H / 2 + 30);
+    ctx.fillText('Refresh to restart', CANVAS_W / 2, CANVAS_H / 2 + TILE_SIZE * 1.5);
   }
 }
 
