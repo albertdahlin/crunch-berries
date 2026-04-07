@@ -1,11 +1,11 @@
 // === CONSTANTS ===
 const COLS = 24;
 const ROWS = 48;
-const TILE_SIZE = 16;
-const CANVAS_W = COLS * TILE_SIZE;
-const CANVAS_H = ROWS * TILE_SIZE;
 const FPS = 30;
 const TICK_RATE = 1000 / FPS;
+
+// Tile size derived from viewport width so the board fills the screen width
+let TILE_SIZE, CANVAS_W, CANVAS_H;
 
 const TOWER_TYPES = [
   { name: 'Melee',     letter: 'M', color: '#4fc3f7', bg: '#1565c0', range: 1, damage: 3, fireRate: 15, cost: 10, hp: 10 },
@@ -37,11 +37,19 @@ function getWaveConfig(waveNum) {
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const dpr = window.devicePixelRatio || 1;
-canvas.width = CANVAS_W * dpr;
-canvas.height = CANVAS_H * dpr;
-canvas.style.width = CANVAS_W + 'px';
-canvas.style.height = CANVAS_H + 'px';
-ctx.scale(dpr, dpr);
+
+function resizeCanvas() {
+  TILE_SIZE = Math.floor(window.innerWidth / COLS);
+  CANVAS_W = COLS * TILE_SIZE;
+  CANVAS_H = ROWS * TILE_SIZE;
+  canvas.width = CANVAS_W * dpr;
+  canvas.height = CANVAS_H * dpr;
+  canvas.style.width = CANVAS_W + 'px';
+  canvas.style.height = CANVAS_H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
 
 // === STATE ===
 const grid = new Uint8Array(COLS * ROWS);  // 0=empty, 1=tower
@@ -543,10 +551,20 @@ function setupInput() {
     }
   });
 
-  // Touch - tap moves cursor, Place button confirms
+  // Touch - use touchend to allow scrolling; only set cursor if it was a tap (not a drag)
+  let touchStartPos = null;
   canvas.addEventListener('touchstart', (e) => {
-    e.preventDefault();
     const touch = e.touches[0];
+    touchStartPos = { x: touch.clientX, y: touch.clientY };
+  }, { passive: true });
+  canvas.addEventListener('touchend', (e) => {
+    if (!touchStartPos) return;
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - touchStartPos.x;
+    const dy = touch.clientY - touchStartPos.y;
+    touchStartPos = null;
+    // Ignore if it was a scroll/drag (moved more than 10px)
+    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) return;
     const rect = canvas.getBoundingClientRect();
     const scaleX = CANVAS_W / rect.width;
     const scaleY = CANVAS_H / rect.height;
