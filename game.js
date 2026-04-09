@@ -469,8 +469,8 @@ function spawnMonster(typeIdx) {
   const sx = candidates[Math.floor(Math.random() * candidates.length)];
 
   state.monsters.push({
-    x: sx + 0.5,
-    y: 0.5,
+    x: sx + 0.3 + Math.random() * 0.4,
+    y: 0.3 + Math.random() * 0.4,
     hp: type.hp,
     maxHp: type.hp,
     speed: type.speed,
@@ -480,6 +480,7 @@ function spawnMonster(typeIdx) {
     color: type.color,
     attacking: null,
     dot: null,
+    renderScale: 0.8 + Math.random() * 0.4,  // 0.8 to 1.2
   });
 }
 
@@ -847,7 +848,6 @@ function drawTowers() {
 }
 
 function drawMonsters() {
-  ctx.font = 'bold ' + (TILE_SIZE - 2) + 'px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
@@ -855,6 +855,7 @@ function drawMonsters() {
     if (m.hp <= 0) continue;
     const px = m.x * TILE_SIZE;
     const py = m.y * TILE_SIZE;
+    const fontSize = Math.round((TILE_SIZE - 2) * (m.renderScale || 1));
 
     // DOT indicator
     if (m.dot) {
@@ -864,7 +865,8 @@ function drawMonsters() {
       ctx.fill();
     }
 
-    // Monster letter
+    // Monster letter (scaled per monster)
+    ctx.font = 'bold ' + fontSize + 'px monospace';
     ctx.fillStyle = m.color;
     ctx.fillText(m.letter, px, py);
 
