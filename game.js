@@ -8,19 +8,23 @@ const TICK_RATE = 1000 / FPS;
 // Tile size derived from viewport width so the board fills the screen width
 let TILE_SIZE, CANVAS_W, CANVAS_H;
 
+// === DAMAGE TYPES ===
+const DAMAGE_TYPES = ['physical', 'fire', 'ice', 'lightning'];
+const DAMAGE_TYPE_COLORS = { physical: '#aaa', fire: '#ff6600', ice: '#66ccff', lightning: '#ffff33' };
+
 // === CONFIG (data-driven, editable via settings) ===
 const DEFAULT_CONFIG = {
   towers: [
-    { name: 'Melee',     letter: 'M', color: '#4fc3f7', bg: '#1565c0', range: 1, damage: 3, fireRate: 15, cost: 10, hp: 10 },
-    { name: 'Range',     letter: 'R', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 5  },
-    { name: 'DOT',       letter: 'D', color: '#81c784', bg: '#2e7d32', range: 1, damage: 0, fireRate: 30, cost: 20, hp: 8, dot: { dps: 1, duration: 90 } },
-    { name: 'Pierce',    letter: 'P', color: '#ce93d8', bg: '#6a1b9a', range: 5, damage: 1, fireRate: 45, cost: 25, hp: 5, pierce: true },
+    { name: 'Melee',     letter: 'M', color: '#4fc3f7', bg: '#1565c0', range: 1, damage: 3, fireRate: 15, cost: 10, hp: 10, damageType: 'physical' },
+    { name: 'Range',     letter: 'R', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 5, damageType: 'physical' },
+    { name: 'DOT',       letter: 'D', color: '#81c784', bg: '#2e7d32', range: 1, damage: 0, fireRate: 30, cost: 20, hp: 8, damageType: 'fire', dot: { dps: 1, duration: 90 } },
+    { name: 'Pierce',    letter: 'P', color: '#ce93d8', bg: '#6a1b9a', range: 5, damage: 1, fireRate: 45, cost: 25, hp: 5, damageType: 'lightning', pierce: true },
     { name: 'Barricade', letter: 'B', color: '#90a4ae', bg: '#455a64', range: 0, damage: 0, fireRate: 9999, cost: 3, hp: 15, barricade: true },
   ],
   monsters: [
-    { name: 'Normal', letter: 'N', color: '#ef5350', hp: 12, speed: 0.08, reward: 5  },
-    { name: 'Fast',   letter: 'F', color: '#ff8a65', hp: 6,  speed: 0.16, reward: 7  },
-    { name: 'Tank',   letter: 'H', color: '#ab47bc', hp: 30, speed: 0.05, reward: 12 },
+    { name: 'Normal', letter: 'N', color: '#ef5350', hp: 12, speed: 0.08, reward: 5 },
+    { name: 'Fast',   letter: 'F', color: '#ff8a65', hp: 6,  speed: 0.16, reward: 7, damageModifiers: { ice: 2 } },
+    { name: 'Tank',   letter: 'H', color: '#ab47bc', hp: 30, speed: 0.05, reward: 12, damageModifiers: { physical: 0.5, fire: 2 } },
   ],
   waves: {
     baseCounts: [6, 3, 2],
@@ -208,6 +212,7 @@ function startGameWithGround() {
   state.towers.length = 0;
   state.monsters.length = 0;
   state.effects.length = 0;
+  state.projectiles.length = 0;
   state.wave = 0;
   state.lives = CONFIG.game.startLives;
   state.gold = CONFIG.game.startGold;
@@ -260,6 +265,7 @@ const state = {
   towers: [],
   monsters: [],
   effects: [],      // visual effects [{x,y,tx,ty,ttl,color}]
+  projectiles: [],   // in-flight projectiles
   cursor: { x: 12, y: 24, visible: false },
   selectedTower: 0,
   placeRotation: 0,   // 0=up, 1=right, 2=down, 3=left (for pierce tower)
@@ -478,6 +484,33 @@ function distToTower(mx, my, tower) {
   return Math.abs(mx - cx) + Math.abs(my - cy);
 }
 
+// === DAMAGE HELPERS ===
+function getDamageModifier(monster, damageType) {
+  const mCfg = CONFIG.monsters[monster.typeIdx];
+  return (mCfg.damageModifiers && mCfg.damageModifiers[damageType]) ?? 1.0;
+}
+
+function applyDamage(monster, baseDamage, damageType) {
+  const mod = getDamageModifier(monster, damageType || 'physical');
+  monster.hp -= baseDamage * mod;
+}
+
+function applySpeedMod(monster, factor, duration) {
+  if (factor === 1) return;
+  monster.speedMod = { factor: factor, remaining: duration || 60 };
+}
+
+function applySplash(cx, cy, radius, baseDamage, damageType, color, excludeMonster) {
+  for (const m of state.monsters) {
+    if (m.hp <= 0 || m === excludeMonster) continue;
+    const d = Math.hypot(m.x - cx, m.y - cy);
+    if (d <= radius) {
+      applyDamage(m, baseDamage, damageType);
+    }
+  }
+  state.effects.push({ type: 'circle', x: cx, y: cy, radius: radius, ttl: 8, color: color });
+}
+
 function updateTowers() {
   for (const tower of state.towers) {
     const type = CONFIG.towers[tower.typeIdx];
@@ -510,7 +543,10 @@ function updateTowers() {
         if (dir === 2 && Math.abs(ry) < 1 && rx >= 0 && rx <= type.range) inCorridor = true;
         if (dir === 6 && Math.abs(ry) < 1 && rx >= -type.range && rx <= 0) inCorridor = true;
         if (inCorridor) {
-          m.hp -= type.damage;
+          applyDamage(m, type.damage, type.damageType);
+          if (type.speedFactor && type.speedFactor !== 1) {
+            applySpeedMod(m, type.speedFactor, type.speedDuration);
+          }
           hit = true;
         }
       }
@@ -539,8 +575,11 @@ function updateTowers() {
       }
       if (!nearest) continue;
       tower.lastFire = state.frame;
-      // Apply/refresh DOT (doesn't stack)
-      nearest.dot = { dps: type.dot.dps, remaining: type.dot.duration };
+      // Apply/refresh DOT (doesn't stack), carries tower's damage type
+      nearest.dot = { dps: type.dot.dps, remaining: type.dot.duration, damageType: type.damageType || 'physical' };
+      if (type.speedFactor && type.speedFactor !== 1) {
+        applySpeedMod(nearest, type.speedFactor, type.speedDuration);
+      }
       state.effects.push({ x: tcx, y: tcy, tx: nearest.x, ty: nearest.y, ttl: 4, color: type.color });
 
     } else {
@@ -557,8 +596,69 @@ function updateTowers() {
       }
       if (!nearest) continue;
       tower.lastFire = state.frame;
-      nearest.hp -= type.damage;
+
+      if (type.projectileSpeed > 0) {
+        // Fire a projectile instead of instant damage
+        state.projectiles.push({
+          x: tcx, y: tcy,
+          tx: nearest.x, ty: nearest.y,
+          target: nearest,
+          speed: type.projectileSpeed,
+          damage: type.damage,
+          towerTypeIdx: tower.typeIdx,
+          color: type.color,
+        });
+      } else {
+        // Instant damage
+        const dmgType = type.damageType || 'physical';
+        applyDamage(nearest, type.damage, dmgType);
+        if (type.speedFactor && type.speedFactor !== 1) {
+          applySpeedMod(nearest, type.speedFactor, type.speedDuration);
+        }
+        if (type.splashRadius > 0) {
+          applySplash(nearest.x, nearest.y, type.splashRadius, type.damage, dmgType, type.color, nearest);
+        }
+      }
       state.effects.push({ x: tcx, y: tcy, tx: nearest.x, ty: nearest.y, ttl: 4, color: type.color });
+    }
+  }
+}
+
+// === PROJECTILE LOGIC ===
+function updateProjectiles() {
+  for (let i = state.projectiles.length - 1; i >= 0; i--) {
+    const p = state.projectiles[i];
+
+    // Track living target (homing)
+    if (p.target && p.target.hp > 0) {
+      p.tx = p.target.x;
+      p.ty = p.target.y;
+    }
+
+    const dx = p.tx - p.x;
+    const dy = p.ty - p.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist <= p.speed) {
+      // Impact
+      const type = CONFIG.towers[p.towerTypeIdx];
+      const dmgType = type.damageType || 'physical';
+      if (p.target && p.target.hp > 0) {
+        applyDamage(p.target, p.damage, dmgType);
+        if (type.speedFactor && type.speedFactor !== 1) {
+          applySpeedMod(p.target, type.speedFactor, type.speedDuration);
+        }
+        if (type.splashRadius > 0) {
+          applySplash(p.tx, p.ty, type.splashRadius, p.damage, dmgType, type.color, p.target);
+        }
+      } else if (type.splashRadius > 0) {
+        // Target died in flight, still splash at destination
+        applySplash(p.tx, p.ty, type.splashRadius, p.damage, dmgType, type.color, null);
+      }
+      state.projectiles.splice(i, 1);
+    } else {
+      p.x += (dx / dist) * p.speed;
+      p.y += (dy / dist) * p.speed;
     }
   }
 }
@@ -591,6 +691,7 @@ function spawnMonster(typeIdx) {
     color: type.color,
     attacking: null,
     dot: null,
+    speedMod: null,
     renderScale: 0.8 + Math.random() * 0.4,  // 0.8 to 1.2
   });
 }
@@ -599,9 +700,10 @@ function updateMonsters() {
   for (const m of state.monsters) {
     if (m.hp <= 0) continue;
 
-    // DOT damage
+    // DOT damage (respects damage type modifiers)
     if (m.dot) {
-      m.hp -= m.dot.dps / FPS;
+      const dotMod = getDamageModifier(m, m.dot.damageType || 'physical');
+      m.hp -= (m.dot.dps / FPS) * dotMod;
       m.dot.remaining--;
       if (m.dot.remaining <= 0) m.dot = null;
     }
@@ -620,7 +722,12 @@ function updateMonsters() {
 
     const idx = tileY * COLS + tileX;
     const flow = pathFlow ? pathFlow[idx] : -1;
-    const speedMult = GROUND_SPEED_MULT[ground[idx]] || 1.0;
+    let speedMult = GROUND_SPEED_MULT[ground[idx]] || 1.0;
+    if (m.speedMod) {
+      speedMult *= m.speedMod.factor;
+      m.speedMod.remaining--;
+      if (m.speedMod.remaining <= 0) m.speedMod = null;
+    }
     const mspd = m.speed * speedMult;
 
     if (flow === -1) {
@@ -955,6 +1062,7 @@ function render() {
   drawGrid();
   drawTowers();
   drawMonsters();
+  drawProjectiles();
   drawCursor();
   drawEffects();
   drawUI();
@@ -1106,6 +1214,16 @@ function drawMonsters() {
     const py = m.y * TILE_SIZE;
     const fontSize = Math.round((TILE_SIZE - 2) * (m.renderScale || 1));
 
+    // Speed modifier indicator
+    if (m.speedMod) {
+      ctx.fillStyle = m.speedMod.factor < 1
+        ? 'rgba(100, 181, 246, 0.3)'   // blue for slow
+        : 'rgba(255, 235, 59, 0.3)';   // yellow for haste
+      ctx.beginPath();
+      ctx.arc(px, py, TILE_SIZE / 2 + 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     // DOT indicator
     if (m.dot) {
       ctx.fillStyle = 'rgba(129, 199, 132, 0.3)';
@@ -1128,6 +1246,15 @@ function drawMonsters() {
       ctx.fillStyle = '#ef5350';
       ctx.fillRect(px - barW / 2, py - TILE_SIZE / 2 - 2, barW * hpRatio, 2);
     }
+  }
+}
+
+function drawProjectiles() {
+  for (const p of state.projectiles) {
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x * TILE_SIZE, p.y * TILE_SIZE, TILE_SIZE * 0.2, 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 
@@ -1215,14 +1342,29 @@ function drawCursor() {
 function drawEffects() {
   for (let i = state.effects.length - 1; i >= 0; i--) {
     const e = state.effects[i];
-    ctx.strokeStyle = e.color;
-    ctx.lineWidth = e.wide ? Math.max(4, TILE_SIZE * 0.4) : 2;
-    ctx.globalAlpha = e.ttl / 4;
-    ctx.beginPath();
-    ctx.moveTo(e.x * TILE_SIZE, e.y * TILE_SIZE);
-    ctx.lineTo(e.tx * TILE_SIZE, e.ty * TILE_SIZE);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
+
+    if (e.type === 'circle') {
+      // Splash circle: expands and fades
+      const progress = 1 - (e.ttl / 8);
+      ctx.strokeStyle = e.color;
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = e.ttl / 8;
+      ctx.beginPath();
+      ctx.arc(e.x * TILE_SIZE, e.y * TILE_SIZE, e.radius * TILE_SIZE * progress, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else {
+      // Line effect (default)
+      ctx.strokeStyle = e.color;
+      ctx.lineWidth = e.wide ? Math.max(4, TILE_SIZE * 0.4) : 2;
+      ctx.globalAlpha = e.ttl / 4;
+      ctx.beginPath();
+      ctx.moveTo(e.x * TILE_SIZE, e.y * TILE_SIZE);
+      ctx.lineTo(e.tx * TILE_SIZE, e.ty * TILE_SIZE);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
     e.ttl--;
     if (e.ttl <= 0) state.effects.splice(i, 1);
   }
@@ -1495,6 +1637,7 @@ function update() {
   updateSpawning();
   updateMonsters();
   updateTowers();
+  updateProjectiles();
 }
 
 let lastTime = 0;
@@ -1564,6 +1707,12 @@ function populateSettings() {
 function createTowerFields(t, i) {
   const div = document.createElement('div');
   div.className = 'cfg-item';
+  // Build damageType select options
+  const dtVal = t.damageType || 'physical';
+  let dtOpts = '';
+  for (const dt of DAMAGE_TYPES) {
+    dtOpts += '<option value="' + dt + '"' + (dt === dtVal ? ' selected' : '') + '>' + dt.charAt(0).toUpperCase() + dt.slice(1) + '</option>';
+  }
   div.innerHTML =
     '<div class="cfg-item-header"><span>Tower ' + (i + 1) + '</span>' +
     '<button class="cfg-remove" onclick="removeTowerType(' + i + ')">X</button></div>' +
@@ -1583,6 +1732,7 @@ function createTowerFields(t, i) {
     '<div class="cfg-row">' +
       '<label>Cost <input type="number" class="tw-cost" min="0" value="' + t.cost + '"></label>' +
       '<label>HP <input type="number" class="tw-hp" min="1" value="' + t.hp + '"></label>' +
+      '<label>Dmg Type <select class="tw-damageType">' + dtOpts + '</select></label>' +
     '</div>' +
     '<div class="cfg-row">' +
       '<label><input type="checkbox" class="tw-pierce"' + (t.pierce ? ' checked' : '') + '> Pierce</label>' +
@@ -1592,6 +1742,14 @@ function createTowerFields(t, i) {
     '<div class="cfg-row cfg-dot-fields"' + (t.dot ? '' : ' style="display:none"') + '>' +
       '<label>DOT DPS <input type="number" class="tw-dotDps" min="0" step="0.1" value="' + (t.dot ? t.dot.dps : 1) + '"></label>' +
       '<label>DOT Duration <input type="number" class="tw-dotDur" min="1" value="' + (t.dot ? t.dot.duration : 90) + '"></label>' +
+    '</div>' +
+    '<div class="cfg-row">' +
+      '<label>Speed Factor <input type="number" class="tw-speedFactor" min="0" step="0.1" value="' + (t.speedFactor || 1) + '"></label>' +
+      '<label>Speed Dur <input type="number" class="tw-speedDuration" min="1" value="' + (t.speedDuration || 60) + '"></label>' +
+    '</div>' +
+    '<div class="cfg-row">' +
+      '<label>Splash Radius <input type="number" class="tw-splashRadius" min="0" step="0.5" value="' + (t.splashRadius || 0) + '"></label>' +
+      '<label>Projectile Spd <input type="number" class="tw-projectileSpeed" min="0" step="0.01" value="' + (t.projectileSpeed || 0) + '"></label>' +
     '</div>';
   // Toggle DOT fields visibility
   div.querySelector('.tw-hasDot').addEventListener('change', function() {
@@ -1603,6 +1761,14 @@ function createTowerFields(t, i) {
 function createMonsterFields(m, i) {
   const div = document.createElement('div');
   div.className = 'cfg-item';
+  // Build damage modifier inputs
+  let modInputs = '';
+  const mods = m.damageModifiers || {};
+  for (const dt of DAMAGE_TYPES) {
+    const val = mods[dt] ?? 1;
+    const label = dt.charAt(0).toUpperCase() + dt.slice(1, 4);
+    modInputs += '<label>' + label + ' x<input type="number" class="mo-mod-' + dt + '" min="0" step="0.1" value="' + val + '"></label>';
+  }
   div.innerHTML =
     '<div class="cfg-item-header"><span>Monster ' + (i + 1) + '</span>' +
     '<button class="cfg-remove" onclick="removeMonsterType(' + i + ')">X</button></div>' +
@@ -1615,7 +1781,8 @@ function createMonsterFields(m, i) {
       '<label>HP <input type="number" class="mo-hp" min="1" value="' + m.hp + '"></label>' +
       '<label>Speed <input type="number" class="mo-speed" min="0.01" step="0.01" value="' + m.speed + '"></label>' +
       '<label>Reward <input type="number" class="mo-reward" min="0" value="' + m.reward + '"></label>' +
-    '</div>';
+    '</div>' +
+    '<div class="cfg-row">' + modInputs + '</div>';
   return div;
 }
 
@@ -1660,19 +1827,44 @@ function readSettings() {
         duration: +div.querySelector('.tw-dotDur').value || 90,
       };
     }
+    t.damageType = div.querySelector('.tw-damageType').value || 'physical';
+    const sf = +div.querySelector('.tw-speedFactor').value;
+    if (sf && sf !== 1) t.speedFactor = sf;
+    const sd = +div.querySelector('.tw-speedDuration').value;
+    if (sd && sd !== 60) t.speedDuration = sd;
+    const sr = +div.querySelector('.tw-splashRadius').value;
+    if (sr > 0) t.splashRadius = sr;
+    const ps = +div.querySelector('.tw-projectileSpeed').value;
+    if (ps > 0) t.projectileSpeed = ps;
     return t;
   });
 
   // Read monsters
   const monsterItems = document.querySelectorAll('#settings-monsters .cfg-item');
-  CONFIG.monsters = Array.from(monsterItems).map(div => ({
-    name: div.querySelector('.mo-name').value,
-    letter: div.querySelector('.mo-letter').value || '?',
-    color: div.querySelector('.mo-color').value,
-    hp: +div.querySelector('.mo-hp').value || 1,
-    speed: +div.querySelector('.mo-speed').value || 0.05,
-    reward: +div.querySelector('.mo-reward').value || 1,
-  }));
+  CONFIG.monsters = Array.from(monsterItems).map(div => {
+    const m = {
+      name: div.querySelector('.mo-name').value,
+      letter: div.querySelector('.mo-letter').value || '?',
+      color: div.querySelector('.mo-color').value,
+      hp: +div.querySelector('.mo-hp').value || 1,
+      speed: +div.querySelector('.mo-speed').value || 0.05,
+      reward: +div.querySelector('.mo-reward').value || 1,
+    };
+    const mods = {};
+    let hasNonDefault = false;
+    for (const dt of DAMAGE_TYPES) {
+      const el = div.querySelector('.mo-mod-' + dt);
+      if (el) {
+        const val = +el.value;
+        if (!isNaN(val) && val !== 1) {
+          mods[dt] = val;
+          hasNonDefault = true;
+        }
+      }
+    }
+    if (hasNonDefault) m.damageModifiers = mods;
+    return m;
+  });
 
   // Read waves
   const baseDivs = document.querySelectorAll('#settings-wave-monsters .cfg-row');
@@ -1691,7 +1883,7 @@ function readSettings() {
 
 function addTowerType() {
   readSettings();
-  CONFIG.towers.push({ name: 'New', letter: 'X', color: '#ffffff', bg: '#444444', range: 2, damage: 1, fireRate: 30, cost: 10, hp: 5 });
+  CONFIG.towers.push({ name: 'New', letter: 'X', color: '#ffffff', bg: '#444444', range: 2, damage: 1, fireRate: 30, cost: 10, hp: 5, damageType: 'physical' });
   populateSettings();
 }
 
