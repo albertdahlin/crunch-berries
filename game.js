@@ -77,232 +77,161 @@ const GROUND_BG         = ['#1a2a1a', '#2a2a2a', '#0a1a3a', '#2a2a0a', '#2a2a2a'
 const GROUND_CHAR       = ['', '', '~', ',', '#'];
 const GROUND_CHAR_COLOR = ['', '', '#1a3a6a', '#4a4a1a', '#3a3a3a'];
 
-// === MAPS ===
-const MAPS = [
-  {
-    name: 'Empty',
-    desc: 'Open field, build freely',
-    setup: function() { /* all grass, road at top/bottom set by startGame */ }
-  },
-  {
-    name: 'Corridor',
-    desc: 'Rock walls form corridors',
-    setup: function() {
-      const wallX1 = 6;
-      const wallX2 = 16;
-      for (let y = 2; y < ROWS - 2; y++) {
-        if (y % 20 < 16) {
-          for (let x = wallX1; x < wallX1 + 2; x++)
-            ground[y * COLS + x] = GROUND_ROCK;
-        }
-        if ((y + 10) % 20 < 16) {
-          for (let x = wallX2; x < wallX2 + 2; x++)
-            ground[y * COLS + x] = GROUND_ROCK;
-        }
-      }
-      // Add some swamp patches in corridor paths
-      for (let y = 8; y < ROWS - 8; y += 12) {
-        for (let dy = 0; dy < 3; dy++) {
-          for (let dx = 0; dx < 4; dx++) {
-            const x = 10 + dx;
-            if (ground[(y + dy) * COLS + x] === GROUND_GRASS)
-              ground[(y + dy) * COLS + x] = GROUND_SWAMP;
-          }
-        }
-      }
-    }
-  },
-  {
-    name: 'Random',
-    desc: 'Mixed terrain',
-    setup: function() {
-      const terrainTypes = [GROUND_WATER, GROUND_ROCK, GROUND_SWAMP];
-      let placed = 0;
-      let attempts = 0;
-      while (placed < 50 && attempts < 400) {
-        attempts++;
-        const x = Math.floor(Math.random() * COLS);
-        const y = 2 + Math.floor(Math.random() * (ROWS - 4));
-        const gt = terrainTypes[Math.floor(Math.random() * terrainTypes.length)];
-        if (ground[y * COLS + x] !== GROUND_GRASS) continue;
-        // Tentatively place
-        ground[y * COLS + x] = gt;
-        // Validate path if non-walkable
-        if (!GROUND_WALKABLE[gt] && !isTopRowReachable()) {
-          ground[y * COLS + x] = GROUND_GRASS;
-          continue;
-        }
-        placed++;
-        // Cluster: place 1-3 more of same type adjacent
-        for (let c = 0; c < 3; c++) {
-          const nx = x + Math.floor(Math.random() * 3) - 1;
-          const ny = y + Math.floor(Math.random() * 3) - 1;
-          if (nx < 0 || nx >= COLS || ny < 2 || ny >= ROWS - 2) continue;
-          if (ground[ny * COLS + nx] !== GROUND_GRASS) continue;
-          ground[ny * COLS + nx] = gt;
-          if (!GROUND_WALKABLE[gt] && !isTopRowReachable()) {
-            ground[ny * COLS + nx] = GROUND_GRASS;
-          }
-        }
-      }
-    }
-  },
-  {
-    name: 'Winding',
-    desc: 'Follow the road',
-    setup: function() {
-      // Generate winding road path
-      const isRoad = new Uint8Array(COLS * ROWS);
-      const roadW = 4;
-      let cx = 2;
-      let dir = 1;
-      for (let y = 2; y < ROWS - 2; y++) {
-        for (let dx = 0; dx < roadW; dx++) {
-          const rx = cx + dx;
-          if (rx >= 0 && rx < COLS) isRoad[y * COLS + rx] = 1;
-        }
-        if (y % 10 === 0 && y > 2 && y < ROWS - 4) {
-          dir = -dir;
-          const newCx = dir > 0 ? 2 : COLS - roadW - 2;
-          const minX = Math.min(cx, newCx);
-          const maxX = Math.max(cx + roadW, newCx + roadW);
-          for (let x = minX; x < maxX; x++) {
-            if (x >= 0 && x < COLS) {
-              isRoad[y * COLS + x] = 1;
-              isRoad[(y + 1) * COLS + x] = 1;
-            }
-          }
-          cx = newCx;
-          y++;
-          for (let dx = 0; dx < roadW; dx++) {
-            const rx = cx + dx;
-            if (rx >= 0 && rx < COLS) isRoad[y * COLS + rx] = 1;
-          }
-        }
-      }
-      // Top and bottom rows are road (already set by startGame)
-      for (let x = 0; x < COLS; x++) {
-        isRoad[x] = 1;
-        isRoad[(ROWS - 1) * COLS + x] = 1;
-      }
-      // Mark road tiles and fill non-road with terrain
-      for (let y = 0; y < ROWS; y++) {
-        for (let x = 0; x < COLS; x++) {
-          const idx = y * COLS + x;
-          if (isRoad[idx]) {
-            ground[idx] = GROUND_ROAD;
-          } else if (y >= 2 && y < ROWS - 2) {
-            // Fill with mixed terrain
-            const r = Math.random();
-            if (r < 0.55) ground[idx] = GROUND_ROCK;
-            else if (r < 0.80) ground[idx] = GROUND_WATER;
-            else ground[idx] = GROUND_SWAMP;
-          }
-        }
-      }
-    }
-  },
-  {
-    name: 'Swamp Road',
-    desc: 'Road through swamp, slow off-road',
-    setup: function() {
-      // Fill everything with swamp first (rows 1 to ROWS-2)
-      for (let y = 1; y < ROWS - 1; y++)
-        for (let x = 0; x < COLS; x++)
-          ground[y * COLS + x] = GROUND_SWAMP;
+// === SAVED MAPS ===
+const GROUND_NAMES = ['Grass', 'Road', 'Water', 'Swamp', 'Rock'];
 
-      // Generate a winding road through the swamp
-      const roadW = 3;
-      let cx = Math.floor(COLS / 2) - 1;
-      let drift = 0;
-      for (let y = 1; y < ROWS - 1; y++) {
-        // Lay road tiles
-        for (let dx = 0; dx < roadW; dx++) {
-          const rx = cx + dx;
-          if (rx >= 0 && rx < COLS) ground[y * COLS + rx] = GROUND_ROAD;
-        }
-        // Wander left/right
-        drift += (Math.random() - 0.5) * 1.8;
-        if (drift > 1) { cx++; drift = 0; }
-        else if (drift < -1) { cx--; drift = 0; }
-        // Stay in bounds
-        cx = Math.max(1, Math.min(COLS - roadW - 1, cx));
-        // Occasional sharp turn
-        if (y % 8 === 0 && y > 2 && y < ROWS - 4) {
-          const turn = (Math.random() < 0.5 ? -1 : 1) * (3 + Math.floor(Math.random() * 3));
-          const newCx = Math.max(1, Math.min(COLS - roadW - 1, cx + turn));
-          // Horizontal bridge
-          const minX = Math.min(cx, newCx);
-          const maxX = Math.max(cx + roadW, newCx + roadW);
-          for (let bx = minX; bx < maxX; bx++) {
-            if (bx >= 0 && bx < COLS) {
-              ground[y * COLS + bx] = GROUND_ROAD;
-              if (y + 1 < ROWS - 1) ground[(y + 1) * COLS + bx] = GROUND_ROAD;
-            }
-          }
-          cx = newCx;
-        }
-      }
-      // Scatter water pools in the swamp
-      for (let i = 0; i < 25; i++) {
-        const wx = Math.floor(Math.random() * COLS);
-        const wy = 2 + Math.floor(Math.random() * (ROWS - 4));
-        if (ground[wy * COLS + wx] !== GROUND_SWAMP) continue;
-        ground[wy * COLS + wx] = GROUND_WATER;
-        if (!isTopRowReachable()) {
-          ground[wy * COLS + wx] = GROUND_SWAMP;
-          continue;
-        }
-        // Cluster a few more
-        for (let c = 0; c < 2; c++) {
-          const nx = wx + Math.floor(Math.random() * 3) - 1;
-          const ny = wy + Math.floor(Math.random() * 3) - 1;
-          if (nx < 0 || nx >= COLS || ny < 2 || ny >= ROWS - 2) continue;
-          if (ground[ny * COLS + nx] !== GROUND_SWAMP) continue;
-          ground[ny * COLS + nx] = GROUND_WATER;
-          if (!isTopRowReachable()) ground[ny * COLS + nx] = GROUND_SWAMP;
-        }
-      }
-      // Add some rock outcrops (buildable islands in the swamp)
-      for (let i = 0; i < 12; i++) {
-        const rx = Math.floor(Math.random() * (COLS - 2)) + 1;
-        const ry = 3 + Math.floor(Math.random() * (ROWS - 6));
-        if (ground[ry * COLS + rx] !== GROUND_SWAMP) continue;
-        ground[ry * COLS + rx] = GROUND_ROCK;
-        if (!isTopRowReachable()) { ground[ry * COLS + rx] = GROUND_SWAMP; continue; }
-        // Small cluster
-        for (let dy = 0; dy < 2; dy++) {
-          for (let dx = 0; dx < 2; dx++) {
-            const nx = rx + dx, ny = ry + dy;
-            if (nx >= COLS || ny >= ROWS - 2) continue;
-            if (ground[ny * COLS + nx] !== GROUND_SWAMP) continue;
-            ground[ny * COLS + nx] = GROUND_ROCK;
-            if (!isTopRowReachable()) ground[ny * COLS + nx] = GROUND_SWAMP;
-          }
-        }
-      }
-    }
-  },
-];
+let savedMaps = [];
+try {
+  const raw = localStorage.getItem('td-maps');
+  if (raw) savedMaps = JSON.parse(raw);
+} catch(e) { savedMaps = []; }
 
-function placeMapBarricade(x, y) {
-  // Verify ground allows building on all 4 tiles
-  for (let dy = 0; dy < 2; dy++)
-    for (let dx = 0; dx < 2; dx++)
-      if (!GROUND_BUILDABLE[ground[(y + dy) * COLS + (x + dx)]]) return;
-  const barricadeIdx = CONFIG.towers.findIndex(t => t.barricade);
-  if (barricadeIdx === -1) return;
-  const type = CONFIG.towers[barricadeIdx];
-  for (let dy = 0; dy < 2; dy++)
-    for (let dx = 0; dx < 2; dx++)
-      grid[(y + dy) * COLS + (x + dx)] = 1;
-  state.towers.push({
-    x: x, y: y,
-    typeIdx: barricadeIdx,
-    hp: type.hp,
-    maxHp: type.hp,
-    lastFire: 0,
-  });
+function saveMapsToStorage() {
+  localStorage.setItem('td-maps', JSON.stringify(savedMaps));
+}
+
+function loadGroundFromMap(mapData) {
+  ground.fill(GROUND_GRASS);
+  for (let x = 0; x < COLS; x++) {
+    ground[x] = GROUND_ROAD;
+    ground[(ROWS - 1) * COLS + x] = GROUND_ROAD;
+  }
+  if (mapData) {
+    for (let i = 0; i < mapData.length && i < COLS * ROWS; i++) {
+      // Don't overwrite top/bottom road rows
+      const y = Math.floor(i / COLS);
+      if (y === 0 || y === ROWS - 1) continue;
+      ground[i] = mapData[i];
+    }
+  }
+}
+
+function groundToMapData() {
+  return Array.from(ground);
+}
+
+// === MAP EDITOR ===
+const editor = {
+  brush: GROUND_GRASS,
+  brushSize: 1,
+  painting: false,
+  mapIndex: -1,  // -1 = new map
+  mapName: 'My Map',
+};
+
+function openMapEditor(mapIndex) {
+  grid.fill(0);
+  ground.fill(GROUND_GRASS);
+  for (let x = 0; x < COLS; x++) {
+    ground[x] = GROUND_ROAD;
+    ground[(ROWS - 1) * COLS + x] = GROUND_ROAD;
+  }
+  if (mapIndex >= 0 && savedMaps[mapIndex]) {
+    loadGroundFromMap(savedMaps[mapIndex].data);
+    editor.mapName = savedMaps[mapIndex].name;
+    editor.mapIndex = mapIndex;
+  } else {
+    editor.mapIndex = -1;
+    editor.mapName = 'My Map';
+  }
+  editor.brush = GROUND_GRASS;
+  editor.brushSize = 1;
+  editor.painting = false;
+  state.cursor = { x: 12, y: 24, visible: false };
+  state.phase = 'MAP_EDIT';
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('ui').style.display = 'none';
+  document.getElementById('editor-ui').style.display = 'flex';
+  rebuildBrushButtons();
+}
+
+function rebuildBrushButtons() {
+  const container = document.getElementById('brush-buttons');
+  container.innerHTML = '';
+  for (let i = 0; i < GROUND_NAMES.length; i++) {
+    const btn = document.createElement('button');
+    btn.textContent = GROUND_NAMES[i];
+    btn.dataset.brush = i;
+    btn.style.borderColor = GROUND_BG[i] === '#2a2a2a' ? '#888' : GROUND_BG[i];
+    if (i === editor.brush) btn.classList.add('selected');
+    btn.addEventListener('click', () => {
+      editor.brush = i;
+      document.querySelectorAll('#brush-buttons button').forEach(b =>
+        b.classList.toggle('selected', parseInt(b.dataset.brush) === i));
+    });
+    container.appendChild(btn);
+  }
+}
+
+function paintTile(x, y) {
+  const sz = editor.brushSize;
+  for (let dy = 0; dy < sz; dy++) {
+    for (let dx = 0; dx < sz; dx++) {
+      const px = x + dx, py = y + dy;
+      if (px < 0 || px >= COLS || py < 0 || py >= ROWS) continue;
+      // Don't paint over top/bottom road rows
+      if (py === 0 || py === ROWS - 1) continue;
+      ground[py * COLS + px] = editor.brush;
+    }
+  }
+}
+
+function saveMap() {
+  const data = groundToMapData();
+  if (editor.mapIndex >= 0) {
+    savedMaps[editor.mapIndex].data = data;
+    savedMaps[editor.mapIndex].name = editor.mapName;
+  } else {
+    savedMaps.push({ name: editor.mapName, data: data });
+    editor.mapIndex = savedMaps.length - 1;
+  }
+  saveMapsToStorage();
+  showMessage('Map saved!');
+}
+
+function validateAndPlay() {
+  // Check path exists
+  grid.fill(0);
+  recomputePath();
+  if (!isTopRowReachable()) {
+    showMessage('No valid path! Monsters need a walkable route top to bottom.');
+    return;
+  }
+  saveMap();
+  document.getElementById('editor-ui').style.display = 'none';
+  startGameWithGround();
+}
+
+function startGameWithGround() {
+  // Start game using current ground state (already set)
+  grid.fill(0);
+  state.towers.length = 0;
+  state.monsters.length = 0;
+  state.effects.length = 0;
+  state.wave = 0;
+  state.lives = CONFIG.game.startLives;
+  state.gold = CONFIG.game.startGold;
+  state.score = 0;
+  state.frame = 0;
+  state.cursor = { x: 12, y: 24, visible: false };
+  state.selectedTower = 0;
+  state.message = '';
+  state.messageTimer = 0;
+  recomputePath();
+  rebuildTowerButtons();
+  state.phase = 'PLACE';
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('ui').style.display = 'flex';
+}
+
+function exitEditor() {
+  document.getElementById('editor-ui').style.display = 'none';
+  state.phase = 'MAP_SELECT';
+}
+
+function deleteMap(idx) {
+  savedMaps.splice(idx, 1);
+  saveMapsToStorage();
 }
 
 // === CANVAS SETUP ===
@@ -792,71 +721,80 @@ function updateSpawning() {
 }
 
 // === INPUT ===
+function canvasToTile(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = CANVAS_W / rect.width;
+  const scaleY = CANVAS_H / rect.height;
+  return {
+    px: (clientX - rect.left) * scaleX,
+    py: (clientY - rect.top) * scaleY,
+    x: Math.floor((clientX - rect.left) * scaleX / TILE_SIZE),
+    y: Math.floor((clientY - rect.top) * scaleY / TILE_SIZE),
+  };
+}
+
 function setupInput() {
-  // Mouse
+  let isTouchDevice = false;
+
+  // Mouse move - update cursor + paint in editor
   canvas.addEventListener('mousemove', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = CANVAS_W / rect.width;
-    const scaleY = CANVAS_H / rect.height;
-    state.cursor.x = Math.floor((e.clientX - rect.left) * scaleX / TILE_SIZE);
-    state.cursor.y = Math.floor((e.clientY - rect.top) * scaleY / TILE_SIZE);
-    state.cursor.x = Math.max(0, Math.min(COLS - 2, state.cursor.x));
-    state.cursor.y = Math.max(0, Math.min(ROWS - 2, state.cursor.y));
+    const t = canvasToTile(e.clientX, e.clientY);
+    const maxX = state.phase === 'MAP_EDIT' ? COLS - 1 : COLS - 2;
+    const maxY = state.phase === 'MAP_EDIT' ? ROWS - 1 : ROWS - 2;
+    state.cursor.x = Math.max(0, Math.min(maxX, t.x));
+    state.cursor.y = Math.max(0, Math.min(maxY, t.y));
     state.cursor.visible = true;
+    if (state.phase === 'MAP_EDIT' && editor.painting) {
+      paintTile(state.cursor.x, state.cursor.y);
+    }
   });
 
   canvas.addEventListener('mouseleave', () => {
     state.cursor.visible = false;
+    editor.painting = false;
   });
 
-  // On touch devices, disable canvas click entirely (use Place button instead)
-  let isTouchDevice = false;
+  // Mouse down/up for editor drag-painting
+  canvas.addEventListener('mousedown', (e) => {
+    if (state.phase === 'MAP_EDIT') {
+      editor.painting = true;
+      const t = canvasToTile(e.clientX, e.clientY);
+      state.cursor.x = Math.max(0, Math.min(COLS - 1, t.x));
+      state.cursor.y = Math.max(0, Math.min(ROWS - 1, t.y));
+      paintTile(state.cursor.x, state.cursor.y);
+    }
+  });
+  canvas.addEventListener('mouseup', () => { editor.painting = false; });
+
+  // Click - map select and tower placement
   canvas.addEventListener('click', (e) => {
     if (isTouchDevice) return;
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = CANVAS_W / rect.width;
-    const scaleY = CANVAS_H / rect.height;
-    const clickX = (e.clientX - rect.left) * scaleX;
-    const clickY = (e.clientY - rect.top) * scaleY;
+    if (state.phase === 'MAP_EDIT') return; // handled by mousedown/move
+    const t = canvasToTile(e.clientX, e.clientY);
 
     if (state.phase === 'MAP_SELECT') {
-      const boxH = TILE_SIZE * 4;
-      const startY = TILE_SIZE * 6;
-      for (let i = 0; i < MAPS.length; i++) {
-        const y = startY + i * (boxH + TILE_SIZE);
-        if (clickY >= y && clickY <= y + boxH) {
-          state.selectedMap = i;
-          startGame(i);
-          return;
-        }
-      }
-      // Check settings button
-      const sb = state._settingsBtn;
-      if (sb && clickX >= sb.x && clickX <= sb.x + sb.w && clickY >= sb.y && clickY <= sb.y + sb.h) {
-        openSettings();
-      }
+      handleMapSelectClick(t.px, t.py);
       return;
     }
 
-    state.cursor.x = Math.floor(clickX / TILE_SIZE);
-    state.cursor.y = Math.floor(clickY / TILE_SIZE);
-    state.cursor.x = Math.max(0, Math.min(COLS - 2, state.cursor.x));
-    state.cursor.y = Math.max(0, Math.min(ROWS - 2, state.cursor.y));
+    state.cursor.x = Math.max(0, Math.min(COLS - 2, t.x));
+    state.cursor.y = Math.max(0, Math.min(ROWS - 2, t.y));
     placeTower();
   });
 
   // Keyboard
   document.addEventListener('keydown', (e) => {
     if (state.phase === 'MAP_SELECT') {
-      switch (e.key) {
-        case 'ArrowUp': state.selectedMap = Math.max(0, state.selectedMap - 1); e.preventDefault(); break;
-        case 'ArrowDown': state.selectedMap = Math.min(MAPS.length - 1, state.selectedMap + 1); e.preventDefault(); break;
-        case ' ': case 'Enter': startGame(state.selectedMap); e.preventDefault(); break;
-        case 's': case 'S': openSettings(); break;
-        default: {
-          const i = parseInt(e.key) - 1;
-          if (i >= 0 && i < MAPS.length) { state.selectedMap = i; startGame(i); }
-        }
+      handleMapSelectKey(e);
+      return;
+    }
+    if (state.phase === 'MAP_EDIT') {
+      // Number keys select brush
+      const n = parseInt(e.key);
+      if (n >= 1 && n <= GROUND_NAMES.length) {
+        editor.brush = n - 1;
+        rebuildBrushButtons();
+        e.preventDefault();
       }
       return;
     }
@@ -874,51 +812,48 @@ function setupInput() {
     }
   });
 
-  // Touch - use touchend to allow scrolling; only set cursor if it was a tap (not a drag)
+  // Touch
   let touchStartPos = null;
   canvas.addEventListener('touchstart', (e) => {
     isTouchDevice = true;
     const touch = e.touches[0];
     touchStartPos = { x: touch.clientX, y: touch.clientY };
+    if (state.phase === 'MAP_EDIT') {
+      const t = canvasToTile(touch.clientX, touch.clientY);
+      state.cursor.x = Math.max(0, Math.min(COLS - 1, t.x));
+      state.cursor.y = Math.max(0, Math.min(ROWS - 1, t.y));
+      state.cursor.visible = true;
+      paintTile(state.cursor.x, state.cursor.y);
+      editor.painting = true;
+    }
+  }, { passive: true });
+  canvas.addEventListener('touchmove', (e) => {
+    if (state.phase === 'MAP_EDIT' && editor.painting) {
+      const touch = e.touches[0];
+      const t = canvasToTile(touch.clientX, touch.clientY);
+      state.cursor.x = Math.max(0, Math.min(COLS - 1, t.x));
+      state.cursor.y = Math.max(0, Math.min(ROWS - 1, t.y));
+      paintTile(state.cursor.x, state.cursor.y);
+    }
   }, { passive: true });
   canvas.addEventListener('touchend', (e) => {
+    editor.painting = false;
     if (!touchStartPos) return;
     const touch = e.changedTouches[0];
     const dx = touch.clientX - touchStartPos.x;
     const dy = touch.clientY - touchStartPos.y;
     touchStartPos = null;
-    // Ignore if it was a scroll/drag (moved more than 10px)
+    if (state.phase === 'MAP_EDIT') return; // already handled
     if (Math.abs(dx) > 10 || Math.abs(dy) > 10) return;
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = CANVAS_W / rect.width;
-    const scaleY = CANVAS_H / rect.height;
-    const tapX = (touch.clientX - rect.left) * scaleX;
-    const tapY = (touch.clientY - rect.top) * scaleY;
+    const t = canvasToTile(touch.clientX, touch.clientY);
 
     if (state.phase === 'MAP_SELECT') {
-      // Check which map box was tapped
-      const boxH = TILE_SIZE * 4;
-      const startY = TILE_SIZE * 6;
-      for (let i = 0; i < MAPS.length; i++) {
-        const y = startY + i * (boxH + TILE_SIZE);
-        if (tapY >= y && tapY <= y + boxH) {
-          state.selectedMap = i;
-          startGame(i);
-          return;
-        }
-      }
-      // Check settings button
-      const sb = state._settingsBtn;
-      if (sb && tapX >= sb.x && tapX <= sb.x + sb.w && tapY >= sb.y && tapY <= sb.y + sb.h) {
-        openSettings();
-      }
+      handleMapSelectClick(t.px, t.py);
       return;
     }
 
-    const tx = Math.floor(tapX / TILE_SIZE);
-    const ty = Math.floor(tapY / TILE_SIZE);
-    state.cursor.x = Math.max(0, Math.min(COLS - 2, tx));
-    state.cursor.y = Math.max(0, Math.min(ROWS - 2, ty));
+    state.cursor.x = Math.max(0, Math.min(COLS - 2, t.x));
+    state.cursor.y = Math.max(0, Math.min(ROWS - 2, t.y));
     state.cursor.visible = true;
   });
 
@@ -933,6 +868,22 @@ function setupInput() {
     document.getElementById('hud').style.display = 'none';
     document.getElementById('ui').style.display = 'none';
     openSettings();
+  });
+
+  // Editor buttons
+  document.getElementById('btn-editor-save').addEventListener('click', saveMap);
+  document.getElementById('btn-editor-play').addEventListener('click', validateAndPlay);
+  document.getElementById('btn-editor-clear').addEventListener('click', () => {
+    ground.fill(GROUND_GRASS);
+    for (let x = 0; x < COLS; x++) {
+      ground[x] = GROUND_ROAD;
+      ground[(ROWS - 1) * COLS + x] = GROUND_ROAD;
+    }
+  });
+  document.getElementById('btn-editor-back').addEventListener('click', exitEditor);
+  document.getElementById('btn-editor-size').addEventListener('click', () => {
+    editor.brushSize = editor.brushSize >= 3 ? 1 : editor.brushSize + 1;
+    document.getElementById('btn-editor-size').textContent = editor.brushSize + 'x' + editor.brushSize;
   });
 }
 
@@ -959,6 +910,12 @@ function render() {
     drawMapSelect();
     return;
   }
+  if (state.phase === 'MAP_EDIT') {
+    drawGrid();
+    drawEditorCursor();
+    drawMessage();
+    return;
+  }
 
   drawGrid();
   drawTowers();
@@ -966,6 +923,34 @@ function render() {
   drawCursor();
   drawEffects();
   drawUI();
+}
+
+function drawEditorCursor() {
+  if (!state.cursor.visible) return;
+  const px = state.cursor.x * TILE_SIZE;
+  const py = state.cursor.y * TILE_SIZE;
+  const sz = editor.brushSize;
+
+  // Brush preview
+  ctx.fillStyle = GROUND_BG[editor.brush];
+  ctx.globalAlpha = 0.5;
+  ctx.fillRect(px, py, TILE_SIZE * sz, TILE_SIZE * sz);
+  ctx.globalAlpha = 1;
+
+  // Cursor outline
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE * sz - 1, TILE_SIZE * sz - 1);
+
+  // Show terrain name
+  const name = GROUND_NAMES[editor.brush];
+  if (name) {
+    ctx.font = Math.floor(TILE_SIZE * 0.5) + 'px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(name, px + TILE_SIZE * sz / 2, py + TILE_SIZE * sz / 2);
+  }
 }
 
 function drawGrid() {
@@ -1134,73 +1119,219 @@ function drawEffects() {
   }
 }
 
-function drawMapSelect() {
-  const titleSize = Math.floor(TILE_SIZE * 1.5);
+function getMapSelectLayout() {
   const itemSize = Math.floor(TILE_SIZE * 0.9);
   const descSize = Math.floor(TILE_SIZE * 0.6);
-  const boxH = TILE_SIZE * 4;
-  const boxW = COLS * TILE_SIZE * 0.8;
-  const startY = TILE_SIZE * 6;
+  const boxH = TILE_SIZE * 3;
+  const boxW = COLS * TILE_SIZE * 0.85;
   const centerX = CANVAS_W / 2;
+  const startY = TILE_SIZE * 5;
+  const gap = TILE_SIZE * 0.5;
+  // Items: "New Map" button, then each saved map, then settings
+  const items = [];
+  // "Empty" play option
+  items.push({ type: 'play-empty', y: 0, h: boxH });
+  // "New Map" editor button
+  items.push({ type: 'new-map', y: 0, h: boxH });
+  // Saved maps
+  for (let i = 0; i < savedMaps.length; i++) {
+    items.push({ type: 'saved', idx: i, y: 0, h: boxH });
+  }
+  // Settings + version
+  items.push({ type: 'settings', y: 0, h: TILE_SIZE * 2.5 });
+  // Calculate positions
+  let cy = startY;
+  for (const item of items) {
+    item.y = cy;
+    cy += item.h + gap;
+  }
+  return { items, boxW, boxH, centerX, itemSize, descSize };
+}
+
+function drawMapSelect() {
+  const layout = getMapSelectLayout();
+  const { items, boxW, centerX, itemSize, descSize } = layout;
+  const titleSize = Math.floor(TILE_SIZE * 1.5);
 
   // Title
   ctx.font = 'bold ' + titleSize + 'px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#81d4fa';
-  ctx.fillText('SELECT MAP', centerX, TILE_SIZE * 3);
+  ctx.fillText('TOWER DEFENCE', centerX, TILE_SIZE * 2.5);
 
-  // Map options
-  for (let i = 0; i < MAPS.length; i++) {
-    const map = MAPS[i];
-    const y = startY + i * (boxH + TILE_SIZE);
-    const isSelected = i === state.selectedMap;
+  // Store hit areas for click handling
+  state._mapSelectItems = items;
+  state._mapSelectBoxW = boxW;
 
-    // Box background
-    ctx.fillStyle = isSelected ? '#1a2a3a' : '#111';
-    ctx.fillRect(centerX - boxW / 2, y, boxW, boxH);
+  for (const item of items) {
+    const y = item.y;
+    const x = centerX - boxW / 2;
 
-    // Box border
-    ctx.strokeStyle = isSelected ? '#4fc3f7' : '#333';
-    ctx.lineWidth = isSelected ? 2 : 1;
-    ctx.strokeRect(centerX - boxW / 2, y, boxW, boxH);
+    if (item.type === 'play-empty') {
+      // Play Empty map button
+      ctx.fillStyle = '#111';
+      ctx.fillRect(x, y, boxW, item.h);
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, boxW, item.h);
+      ctx.font = 'bold ' + itemSize + 'px monospace';
+      ctx.fillStyle = '#4caf50';
+      ctx.fillText('Play Empty Map', centerX, y + item.h * 0.4);
+      ctx.font = descSize + 'px monospace';
+      ctx.fillStyle = '#555';
+      ctx.fillText('Open field, build freely', centerX, y + item.h * 0.75);
 
-    // Map name
-    ctx.font = 'bold ' + itemSize + 'px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = isSelected ? '#fff' : '#888';
-    ctx.fillText((i + 1) + '. ' + map.name, centerX, y + boxH * 0.35);
+    } else if (item.type === 'new-map') {
+      // New map button
+      ctx.fillStyle = '#0a1a0a';
+      ctx.fillRect(x, y, boxW, item.h);
+      ctx.strokeStyle = '#4caf50';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, boxW, item.h);
+      ctx.font = 'bold ' + itemSize + 'px monospace';
+      ctx.fillStyle = '#4caf50';
+      ctx.fillText('+ New Map', centerX, y + item.h * 0.4);
+      ctx.font = descSize + 'px monospace';
+      ctx.fillStyle = '#555';
+      ctx.fillText('Open the map editor', centerX, y + item.h * 0.75);
 
-    // Description
-    ctx.font = descSize + 'px monospace';
-    ctx.fillStyle = isSelected ? '#aaa' : '#555';
-    ctx.fillText(map.desc, centerX, y + boxH * 0.7);
+    } else if (item.type === 'saved') {
+      const map = savedMaps[item.idx];
+      // Map box
+      ctx.fillStyle = '#111';
+      ctx.fillRect(x, y, boxW, item.h);
+      ctx.strokeStyle = '#4fc3f7';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, boxW, item.h);
+      // Map name + Play
+      ctx.font = 'bold ' + itemSize + 'px monospace';
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'left';
+      ctx.fillText(map.name, x + TILE_SIZE * 0.5, y + item.h * 0.35);
+      // Edit button
+      const btnW = TILE_SIZE * 3;
+      const btnH = item.h * 0.5;
+      const editX = x + boxW - btnW * 2 - TILE_SIZE * 0.5;
+      const editY = y + (item.h - btnH) / 2;
+      ctx.fillStyle = '#1a2a1a';
+      ctx.fillRect(editX, editY, btnW, btnH);
+      ctx.strokeStyle = '#4caf50';
+      ctx.strokeRect(editX, editY, btnW, btnH);
+      ctx.font = descSize + 'px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#4caf50';
+      ctx.fillText('Edit', editX + btnW / 2, editY + btnH / 2);
+      item._editBtn = { x: editX, y: editY, w: btnW, h: btnH };
+      // Delete button
+      const delX = x + boxW - btnW - TILE_SIZE * 0.3;
+      ctx.fillStyle = '#2a0a0a';
+      ctx.fillRect(delX, editY, btnW, btnH);
+      ctx.strokeStyle = '#f44336';
+      ctx.strokeRect(delX, editY, btnW, btnH);
+      ctx.fillStyle = '#f44336';
+      ctx.fillText('Del', delX + btnW / 2, editY + btnH / 2);
+      item._delBtn = { x: delX, y: editY, w: btnW, h: btnH };
+      // "Tap to play" hint
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#555';
+      ctx.fillText('Tap to play', x + TILE_SIZE * 0.5, y + item.h * 0.75);
+      ctx.textAlign = 'center';
+
+    } else if (item.type === 'settings') {
+      ctx.fillStyle = '#1a1a2a';
+      ctx.fillRect(x, y, boxW, item.h);
+      ctx.strokeStyle = '#555';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, boxW, item.h);
+      ctx.font = 'bold ' + itemSize + 'px monospace';
+      ctx.fillStyle = '#888';
+      ctx.fillText('Settings (S)', centerX, y + item.h / 2);
+    }
   }
 
-  // Settings button
-  const settingsY = startY + MAPS.length * (boxH + TILE_SIZE) + TILE_SIZE;
-  const settingsBtnW = boxW * 0.4;
-  const settingsBtnH = TILE_SIZE * 2.5;
-  state._settingsBtn = { x: centerX - settingsBtnW / 2, y: settingsY, w: settingsBtnW, h: settingsBtnH };
-  ctx.fillStyle = '#1a1a2a';
-  ctx.fillRect(state._settingsBtn.x, settingsY, settingsBtnW, settingsBtnH);
-  ctx.strokeStyle = '#555';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(state._settingsBtn.x, settingsY, settingsBtnW, settingsBtnH);
-  ctx.font = 'bold ' + itemSize + 'px monospace';
-  ctx.fillStyle = '#888';
-  ctx.fillText('Settings (S)', centerX, settingsY + settingsBtnH / 2);
-
-  // Instructions
+  // Version at bottom
+  const lastItem = items[items.length - 1];
   ctx.font = descSize + 'px monospace';
-  ctx.fillStyle = '#444';
-  const instrY = settingsY + settingsBtnH + TILE_SIZE;
-  ctx.fillText('Tap a map to play, or S for settings', centerX, instrY);
-
-  // Version
   ctx.fillStyle = '#333';
-  ctx.fillText('v' + VERSION, centerX, instrY + TILE_SIZE * 1.5);
+  ctx.textAlign = 'center';
+  ctx.fillText('v' + VERSION, centerX, lastItem.y + lastItem.h + TILE_SIZE);
+}
+
+function handleMapSelectClick(px, py) {
+  const items = state._mapSelectItems;
+  const boxW = state._mapSelectBoxW;
+  if (!items) return;
+  const centerX = CANVAS_W / 2;
+
+  for (const item of items) {
+    const x = centerX - boxW / 2;
+    if (py < item.y || py > item.y + item.h) continue;
+    if (px < x || px > x + boxW) continue;
+
+    if (item.type === 'play-empty') {
+      startGame(-1); // -1 = empty map
+      return;
+    }
+    if (item.type === 'new-map') {
+      openMapEditor(-1);
+      return;
+    }
+    if (item.type === 'saved') {
+      // Check edit/delete buttons first
+      const eb = item._editBtn;
+      if (eb && px >= eb.x && px <= eb.x + eb.w && py >= eb.y && py <= eb.y + eb.h) {
+        openMapEditor(item.idx);
+        return;
+      }
+      const db = item._delBtn;
+      if (db && px >= db.x && px <= db.x + db.w && py >= db.y && py <= db.y + db.h) {
+        deleteMap(item.idx);
+        return;
+      }
+      // Tap on box = play
+      startGame(item.idx);
+      return;
+    }
+    if (item.type === 'settings') {
+      openSettings();
+      return;
+    }
+  }
+}
+
+function handleMapSelectKey(e) {
+  switch (e.key) {
+    case 's': case 'S': openSettings(); break;
+    case 'n': case 'N': openMapEditor(-1); break;
+    case 'e': case 'E':
+      // Edit first saved map
+      if (savedMaps.length > 0) openMapEditor(0);
+      break;
+    case ' ': case 'Enter':
+      startGame(-1); // play empty
+      e.preventDefault();
+      break;
+    default: {
+      const n = parseInt(e.key);
+      if (n === 0) { startGame(-1); } // 0 = empty
+      else if (n >= 1 && n <= savedMaps.length) { startGame(n - 1); }
+    }
+  }
+}
+
+function drawMessage() {
+  if (state.messageTimer <= 0) return;
+  const fontSize = Math.max(10, Math.floor(TILE_SIZE * 0.7));
+  const msgH = TILE_SIZE * 1.5;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(0, CANVAS_H / 2 - msgH / 2, CANVAS_W, msgH);
+  ctx.font = fontSize + 'px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(state.message, CANVAS_W / 2, CANVAS_H / 2);
+  state.messageTimer--;
 }
 
 function drawUI() {
@@ -1214,20 +1345,7 @@ function drawUI() {
   phaseEl.textContent = state.phase === 'PLACE' ? 'PLACE TOWERS' : state.phase === 'WAVE' ? 'WAVE ' + state.wave : 'GAME OVER';
   phaseEl.style.color = state.phase === 'WAVE' ? '#ff9800' : state.phase === 'GAMEOVER' ? '#f44336' : '#4caf50';
 
-  const fontSize = Math.max(10, Math.floor(TILE_SIZE * 0.7));
-
-  // Message
-  if (state.messageTimer > 0) {
-    const msgH = TILE_SIZE * 1.5;
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.fillRect(0, CANVAS_H / 2 - msgH / 2, CANVAS_W, msgH);
-    ctx.font = fontSize + 'px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#fff';
-    ctx.fillText(state.message, CANVAS_W / 2, CANVAS_H / 2);
-    state.messageTimer--;
-  }
+  drawMessage();
 
   // Game over overlay
   if (state.phase === 'GAMEOVER') {
@@ -1496,34 +1614,17 @@ function esc(s) { return s.replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
 // === INIT ===
 function startGame(mapIdx) {
-  // Clear grid and ground
+  // mapIdx: -1 = empty, 0+ = index into savedMaps
   grid.fill(0);
   ground.fill(GROUND_GRASS);
-  // Top and bottom rows are always road
   for (let x = 0; x < COLS; x++) {
     ground[x] = GROUND_ROAD;
     ground[(ROWS - 1) * COLS + x] = GROUND_ROAD;
   }
-  state.towers.length = 0;
-  state.monsters.length = 0;
-  state.effects.length = 0;
-  state.wave = 0;
-  state.lives = CONFIG.game.startLives;
-  state.gold = CONFIG.game.startGold;
-  state.score = 0;
-  state.frame = 0;
-  state.cursor = { x: 12, y: 24, visible: false };
-  state.selectedTower = 0;
-  state.message = '';
-  state.messageTimer = 0;
-
-  // Apply map
-  MAPS[mapIdx].setup();
-  recomputePath();
-  rebuildTowerButtons();
-  state.phase = 'PLACE';
-  document.getElementById('hud').style.display = 'flex';
-  document.getElementById('ui').style.display = 'flex';
+  if (mapIdx >= 0 && savedMaps[mapIdx]) {
+    loadGroundFromMap(savedMaps[mapIdx].data);
+  }
+  startGameWithGround();
 }
 
 function rebuildTowerButtons() {
@@ -1542,6 +1643,7 @@ function rebuildTowerButtons() {
 function init() {
   document.getElementById('hud').style.display = 'none';
   document.getElementById('ui').style.display = 'none';
+  document.getElementById('editor-ui').style.display = 'none';
   setupInput();
   requestAnimationFrame(gameLoop);
 }

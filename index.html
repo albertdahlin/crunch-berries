@@ -72,6 +72,7 @@ canvas {
 #btn-wave { background: #0d47a1; border-color: #42a5f5; color: #fff; }
 #btn-wave:active { background: #1565c0; }
 #tower-buttons { display: contents; }
+#brush-buttons { display: contents; }
 
 /* Settings overlay */
 #settings {
@@ -160,6 +161,43 @@ canvas {
 #settings .cfg-actions button { flex: 1; padding: 10px; font-size: 15px; }
 .btn-save { background: #1b5e20 !important; border-color: #4caf50 !important; color: #fff !important; }
 .btn-reset { background: #4a1a1a !important; border-color: #f44336 !important; color: #f44336 !important; }
+
+/* Editor UI */
+#editor-ui {
+  position: sticky;
+  bottom: 0;
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 8px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  background: #0a0a1a;
+  width: 100%;
+  z-index: 10;
+}
+#editor-ui .editor-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+#editor-ui button {
+  padding: 6px 12px;
+  font-size: 14px;
+  font-family: monospace;
+  background: #222;
+  color: #ccc;
+  border: 1px solid #444;
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+#editor-ui button:active { background: #444; }
+#editor-ui button.selected { border-color: #fff; background: #333; }
+#btn-editor-play { background: #1b5e20; border-color: #4caf50; color: #fff; }
+#btn-editor-save { background: #0d47a1; border-color: #42a5f5; color: #fff; }
+#btn-editor-back { background: #333; border-color: #666; }
+#btn-editor-clear { background: #4a1a1a; border-color: #f44336; color: #f44336; }
 </style>
 </head>
 <body>
@@ -177,6 +215,19 @@ canvas {
   <button id="btn-place">Place</button>
   <button id="btn-wave">Wave (W)</button>
   <button id="btn-settings">Cfg</button>
+</div>
+
+<div id="editor-ui">
+  <div class="editor-row">
+    <span id="brush-buttons"></span>
+    <button id="btn-editor-size">1x1</button>
+  </div>
+  <div class="editor-row">
+    <button id="btn-editor-play">Play</button>
+    <button id="btn-editor-save">Save</button>
+    <button id="btn-editor-clear">Clear</button>
+    <button id="btn-editor-back">Back</button>
+  </div>
 </div>
 
 <div id="settings">
