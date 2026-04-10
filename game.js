@@ -471,7 +471,7 @@ function updateTowers() {
     const tcy = tower.y + 1;
 
     if (type.pierce) {
-      // Find nearest monster to determine direction
+      // Find nearest monster to determine direction (horizontal or vertical only)
       let nearest = null;
       let nearDist = Infinity;
       for (const m of state.monsters) {
@@ -484,7 +484,7 @@ function updateTowers() {
       }
       if (!nearest) continue;
 
-      // Pick cardinal direction (using 8-dir indices: 0=up, 2=right, 4=down, 6=left)
+      // Pick horizontal or vertical direction
       const dx = nearest.x - tcx;
       const dy = nearest.y - tcy;
       let dir;
@@ -494,7 +494,7 @@ function updateTowers() {
         dir = dy > 0 ? 4 : 0;
       }
 
-      // Hit all monsters in the corridor
+      // Always fire full range ray and hit all monsters in corridor
       let hit = false;
       for (const m of state.monsters) {
         if (m.hp <= 0) continue;
@@ -510,24 +510,27 @@ function updateTowers() {
           hit = true;
         }
       }
-      if (hit) {
-        tower.lastFire = state.frame;
-        // Effect line
-        const ex = tcx + DX[dir] * type.range;
-        const ey = tcy + DY[dir] * type.range;
-        state.effects.push({ x: tcx, y: tcy, tx: ex, ty: ey, ttl: 4, color: type.color });
-      }
+      // Always show ray at max range
+      tower.lastFire = state.frame;
+      const ex = tcx + DX[dir] * type.range;
+      const ey = tcy + DY[dir] * type.range;
+      state.effects.push({ x: tcx, y: tcy, tx: ex, ty: ey, ttl: 4, color: type.color, wide: true });
 
     } else if (type.dot) {
-      // DOT tower: apply DOT to nearest in range
+      // DOT tower: prioritize monsters without DOT, then nearest in range
       let nearest = null;
       let nearDist = Infinity;
+      let nearestHasDot = true;
       for (const m of state.monsters) {
         if (m.hp <= 0) continue;
         const d = distToTower(m.x, m.y, tower);
-        if (d < nearDist && d <= type.range + 1) {
+        if (d > type.range + 1) continue;
+        const hasDot = !!m.dot;
+        // Prefer targets without DOT; among same DOT status, prefer nearest
+        if ((!hasDot && nearestHasDot) || (hasDot === nearestHasDot && d < nearDist)) {
           nearDist = d;
           nearest = m;
+          nearestHasDot = hasDot;
         }
       }
       if (!nearest) continue;
@@ -1107,7 +1110,7 @@ function drawEffects() {
   for (let i = state.effects.length - 1; i >= 0; i--) {
     const e = state.effects[i];
     ctx.strokeStyle = e.color;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = e.wide ? Math.max(4, TILE_SIZE * 0.4) : 2;
     ctx.globalAlpha = e.ttl / 4;
     ctx.beginPath();
     ctx.moveTo(e.x * TILE_SIZE, e.y * TILE_SIZE);
