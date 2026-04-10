@@ -62,43 +62,88 @@ function getWaveConfig(waveNum) {
   return { counts, interval };
 }
 
+// === GROUND TYPES ===
+const GROUND_GRASS = 0;
+const GROUND_ROAD  = 1;
+const GROUND_WATER = 2;
+const GROUND_SWAMP = 3;
+const GROUND_ROCK  = 4;
+
+const GROUND_WALKABLE   = [true, true, false, true, false];   // can monsters walk?
+const GROUND_BUILDABLE  = [true, false, false, false, true];   // can towers be placed?
+const GROUND_SPEED_MULT = [1.0, 1.0, 1.0, 0.5, 1.0];         // monster speed multiplier
+
+const GROUND_BG         = ['#1a2a1a', '#2a2a2a', '#0a1a3a', '#2a2a0a', '#2a2a2a'];
+const GROUND_CHAR       = ['', '', '~', ',', '#'];
+const GROUND_CHAR_COLOR = ['', '', '#1a3a6a', '#4a4a1a', '#3a3a3a'];
+
 // === MAPS ===
 const MAPS = [
   {
     name: 'Empty',
     desc: 'Open field, build freely',
-    setup: function() { /* nothing */ }
+    setup: function() { /* all grass, road at top/bottom set by startGame */ }
   },
   {
     name: 'Corridor',
-    desc: 'Barricade walls form corridors',
+    desc: 'Rock walls form corridors',
     setup: function() {
       const wallX1 = 6;
       const wallX2 = 16;
-      for (let y = 4; y < ROWS - 4; y += 2) {
-        if (y % 20 < 16) placeMapBarricade(wallX1, y);
-        if ((y + 10) % 20 < 16) placeMapBarricade(wallX2, y);
+      for (let y = 2; y < ROWS - 2; y++) {
+        if (y % 20 < 16) {
+          for (let x = wallX1; x < wallX1 + 2; x++)
+            ground[y * COLS + x] = GROUND_ROCK;
+        }
+        if ((y + 10) % 20 < 16) {
+          for (let x = wallX2; x < wallX2 + 2; x++)
+            ground[y * COLS + x] = GROUND_ROCK;
+        }
+      }
+      // Add some swamp patches in corridor paths
+      for (let y = 8; y < ROWS - 8; y += 12) {
+        for (let dy = 0; dy < 3; dy++) {
+          for (let dx = 0; dx < 4; dx++) {
+            const x = 10 + dx;
+            if (ground[(y + dy) * COLS + x] === GROUND_GRASS)
+              ground[(y + dy) * COLS + x] = GROUND_SWAMP;
+          }
+        }
       }
     }
   },
   {
     name: 'Random',
-    desc: 'Scattered obstacles',
+    desc: 'Mixed terrain',
     setup: function() {
+      const terrainTypes = [GROUND_WATER, GROUND_ROCK, GROUND_SWAMP];
       let placed = 0;
       let attempts = 0;
-      while (placed < 30 && attempts < 200) {
+      while (placed < 50 && attempts < 400) {
         attempts++;
-        const x = Math.floor(Math.random() * (COLS - 1));
-        const y = 2 + Math.floor(Math.random() * (ROWS - 5));
-        if (!canPlaceTower(x, y)) continue;
-        const tempGrid = new Uint8Array(grid);
-        for (let dy = 0; dy < 2; dy++)
-          for (let dx = 0; dx < 2; dx++)
-            tempGrid[(y + dy) * COLS + (x + dx)] = 1;
-        if (!isTopRowReachable(tempGrid)) continue;
-        placeMapBarricade(x, y);
+        const x = Math.floor(Math.random() * COLS);
+        const y = 2 + Math.floor(Math.random() * (ROWS - 4));
+        const gt = terrainTypes[Math.floor(Math.random() * terrainTypes.length)];
+        if (ground[y * COLS + x] !== GROUND_GRASS) continue;
+        // Tentatively place
+        ground[y * COLS + x] = gt;
+        // Validate path if non-walkable
+        if (!GROUND_WALKABLE[gt] && !isTopRowReachable()) {
+          ground[y * COLS + x] = GROUND_GRASS;
+          continue;
+        }
         placed++;
+        // Cluster: place 1-3 more of same type adjacent
+        for (let c = 0; c < 3; c++) {
+          const nx = x + Math.floor(Math.random() * 3) - 1;
+          const ny = y + Math.floor(Math.random() * 3) - 1;
+          if (nx < 0 || nx >= COLS || ny < 2 || ny >= ROWS - 2) continue;
+          if (ground[ny * COLS + nx] !== GROUND_GRASS) continue;
+          ground[ny * COLS + nx] = gt;
+          if (!GROUND_WALKABLE[gt] && !isTopRowReachable()) {
+            ground[ny * COLS + nx] = GROUND_GRASS;
+          }
+        }
       }
     }
   },
@@ -106,14 +151,15 @@ const MAPS = [
     name: 'Winding',
     desc: 'Follow the road',
     setup: function() {
-      const path = new Uint8Array(COLS * ROWS);
+      // Generate winding road path
+      const isRoad = new Uint8Array(COLS * ROWS);
       const roadW = 4;
       let cx = 2;
       let dir = 1;
       for (let y = 2; y < ROWS - 2; y++) {
         for (let dx = 0; dx < roadW; dx++) {
           const rx = cx + dx;
-          if (rx >= 0 && rx < COLS) path[y * COLS + rx] = 1;
+          if (rx >= 0 && rx < COLS) isRoad[y * COLS + rx] = 1;
         }
         if (y % 10 === 0 && y > 2 && y < ROWS - 4) {
           dir = -dir;
@@ -122,28 +168,35 @@ const MAPS = [
           const maxX = Math.max(cx + roadW, newCx + roadW);
           for (let x = minX; x < maxX; x++) {
             if (x >= 0 && x < COLS) {
-              path[y * COLS + x] = 1;
-              path[(y + 1) * COLS + x] = 1;
+              isRoad[y * COLS + x] = 1;
+              isRoad[(y + 1) * COLS + x] = 1;
             }
           }
           cx = newCx;
           y++;
           for (let dx = 0; dx < roadW; dx++) {
             const rx = cx + dx;
-            if (rx >= 0 && rx < COLS) path[y * COLS + rx] = 1;
+            if (rx >= 0 && rx < COLS) isRoad[y * COLS + rx] = 1;
           }
         }
       }
+      // Top and bottom rows are road (already set by startGame)
       for (let x = 0; x < COLS; x++) {
-        path[x] = 1;
-        path[(ROWS - 1) * COLS + x] = 1;
+        isRoad[x] = 1;
+        isRoad[(ROWS - 1) * COLS + x] = 1;
       }
-      for (let y = 2; y < ROWS - 3; y += 2) {
-        for (let x = 0; x < COLS - 1; x += 2) {
-          if (path[y * COLS + x] || path[y * COLS + x + 1] ||
-              path[(y + 1) * COLS + x] || path[(y + 1) * COLS + x + 1]) continue;
-          if (canPlaceTower(x, y)) {
-            placeMapBarricade(x, y);
+      // Mark road tiles and fill non-road with terrain
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          const idx = y * COLS + x;
+          if (isRoad[idx]) {
+            ground[idx] = GROUND_ROAD;
+          } else if (y >= 2 && y < ROWS - 2) {
+            // Fill with mixed terrain
+            const r = Math.random();
+            if (r < 0.55) ground[idx] = GROUND_ROCK;
+            else if (r < 0.80) ground[idx] = GROUND_WATER;
+            else ground[idx] = GROUND_SWAMP;
           }
         }
       }
@@ -152,7 +205,12 @@ const MAPS = [
 ];
 
 function placeMapBarricade(x, y) {
+  // Verify ground allows building on all 4 tiles
+  for (let dy = 0; dy < 2; dy++)
+    for (let dx = 0; dx < 2; dx++)
+      if (!GROUND_BUILDABLE[ground[(y + dy) * COLS + (x + dx)]]) return;
   const barricadeIdx = CONFIG.towers.findIndex(t => t.barricade);
+  if (barricadeIdx === -1) return;
   const type = CONFIG.towers[barricadeIdx];
   for (let dy = 0; dy < 2; dy++)
     for (let dx = 0; dx < 2; dx++)
@@ -185,7 +243,8 @@ resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
 // === STATE ===
-const grid = new Uint8Array(COLS * ROWS);  // 0=empty, 1=tower
+const grid = new Uint8Array(COLS * ROWS);    // 0=empty, 1=tower
+const ground = new Uint8Array(COLS * ROWS);  // GROUND_* terrain type per tile
 const state = {
   towers: [],
   monsters: [],
@@ -257,10 +316,10 @@ function computePath(tempGrid) {
     return top;
   }
 
-  // Seed: all bottom-row cells that are not towers
+  // Seed: all bottom-row cells that are walkable (no tower + walkable ground)
   for (let x = 0; x < COLS; x++) {
     const idx = (ROWS - 1) * COLS + x;
-    if (g[idx] === 0) {
+    if (g[idx] === 0 && GROUND_WALKABLE[ground[idx]]) {
       dist[idx] = 0;
       heapPush(0, idx);
     }
@@ -279,14 +338,17 @@ function computePath(tempGrid) {
       const ny = cy + DY[dir];
       if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
       const ni = ny * COLS + nx;
-      if (g[ni] !== 0) continue;
+      if (g[ni] !== 0 || !GROUND_WALKABLE[ground[ni]]) continue;
       // Diagonal: require both adjacent cardinal cells to be free (no corner-cutting)
       if (dir % 2 === 1) {
-        const adj1 = g[cy * COLS + nx];  // horizontal neighbor
-        const adj2 = g[ny * COLS + cx];  // vertical neighbor
-        if (adj1 !== 0 || adj2 !== 0) continue;
+        const adj1Idx = cy * COLS + nx;
+        const adj2Idx = ny * COLS + cx;
+        if (g[adj1Idx] !== 0 || !GROUND_WALKABLE[ground[adj1Idx]] ||
+            g[adj2Idx] !== 0 || !GROUND_WALKABLE[ground[adj2Idx]]) continue;
       }
-      const nd = d + DIR_COST[dir];
+      let tileCost = DIR_COST[dir];
+      if (ground[ni] === GROUND_SWAMP) tileCost *= 2;
+      const nd = d + tileCost;
       if (dist[ni] !== -1 && nd >= dist[ni]) continue;
       dist[ni] = nd;
       // Flow points from neighbor toward current cell (opposite direction)
@@ -319,7 +381,9 @@ function canPlaceTower(tx, ty) {
   if (ty < 1 || ty + 1 >= ROWS - 1) return false;
   for (let dy = 0; dy < 2; dy++) {
     for (let dx = 0; dx < 2; dx++) {
-      if (grid[(ty + dy) * COLS + (tx + dx)] !== 0) return false;
+      const idx = (ty + dy) * COLS + (tx + dx);
+      if (grid[idx] !== 0) return false;
+      if (!GROUND_BUILDABLE[ground[idx]]) return false;
     }
   }
   return true;
@@ -488,11 +552,13 @@ function spawnMonster(typeIdx) {
   // Find a reachable spawn column
   const candidates = [];
   for (let x = 0; x < COLS; x++) {
-    if (pathDist && pathDist[x] !== -1) candidates.push(x);
+    if (pathDist && pathDist[x] !== -1 && GROUND_WALKABLE[ground[x]]) candidates.push(x);
   }
   if (candidates.length === 0) {
-    // No reachable column, pick random
-    for (let x = 0; x < COLS; x++) candidates.push(x);
+    // No reachable column, pick any walkable
+    for (let x = 0; x < COLS; x++) {
+      if (GROUND_WALKABLE[ground[x]]) candidates.push(x);
+    }
   }
   const sx = candidates[Math.floor(Math.random() * candidates.length)];
 
@@ -537,6 +603,8 @@ function updateMonsters() {
 
     const idx = tileY * COLS + tileX;
     const flow = pathFlow ? pathFlow[idx] : -1;
+    const speedMult = GROUND_SPEED_MULT[ground[idx]] || 1.0;
+    const mspd = m.speed * speedMult;
 
     if (flow === -1) {
       // No path - attack nearest tower
@@ -565,8 +633,8 @@ function updateMonsters() {
           }
         } else {
           // Move toward tower
-          m.x += (dx / dist) * m.speed;
-          m.y += (dy / dist) * m.speed;
+          m.x += (dx / dist) * mspd;
+          m.y += (dy / dist) * mspd;
         }
       }
     } else {
@@ -576,7 +644,7 @@ function updateMonsters() {
       const fdy = DY[flow];
       const isDiag = fdx !== 0 && fdy !== 0;
       // Diagonal movement: normalize speed so diagonal isn't faster
-      const spd = isDiag ? m.speed * 0.707 : m.speed;
+      const spd = isDiag ? mspd * 0.707 : mspd;
       if (isDiag) {
         // Diagonal: move both axes
         m.x += fdx * spd;
@@ -586,17 +654,17 @@ function updateMonsters() {
         const centerY = tileY + 0.5;
         const diffY = centerY - m.y;
         if (Math.abs(diffY) > 0.01) {
-          m.y += Math.sign(diffY) * Math.min(Math.abs(diffY), m.speed);
+          m.y += Math.sign(diffY) * Math.min(Math.abs(diffY), mspd);
         }
-        m.x += fdx * m.speed;
+        m.x += fdx * mspd;
       } else {
         // Vertical: snap x toward tile center
         const centerX = tileX + 0.5;
         const diffX = centerX - m.x;
         if (Math.abs(diffX) > 0.01) {
-          m.x += Math.sign(diffX) * Math.min(Math.abs(diffX), m.speed);
+          m.x += Math.sign(diffX) * Math.min(Math.abs(diffX), mspd);
         }
-        m.y += fdy * m.speed;
+        m.y += fdy * mspd;
       }
     }
   }
@@ -819,13 +887,26 @@ function render() {
 }
 
 function drawGrid() {
-  // Spawn row
-  ctx.fillStyle = '#1a2a1a';
-  ctx.fillRect(0, 0, CANVAS_W, TILE_SIZE);
+  ctx.font = (TILE_SIZE - 4) + 'px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
 
-  // Goal row
-  ctx.fillStyle = '#1a1a2a';
-  ctx.fillRect(0, (ROWS - 1) * TILE_SIZE, CANVAS_W, TILE_SIZE);
+  // Draw terrain per tile
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      const gt = ground[y * COLS + x];
+      const px = x * TILE_SIZE;
+      const py = y * TILE_SIZE;
+
+      ctx.fillStyle = GROUND_BG[gt];
+      ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+
+      if (GROUND_CHAR[gt]) {
+        ctx.fillStyle = GROUND_CHAR_COLOR[gt];
+        ctx.fillText(GROUND_CHAR[gt], px + TILE_SIZE / 2, py + TILE_SIZE / 2);
+      }
+    }
+  }
 
   // Grid lines (subtle)
   ctx.strokeStyle = '#1a1a2a';
@@ -843,18 +924,17 @@ function drawGrid() {
     ctx.stroke();
   }
 
-  // Spawn markers
-  ctx.font = (TILE_SIZE - 4) + 'px monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
+  // Spawn markers (only on walkable tiles)
   ctx.fillStyle = '#2a4a2a';
   for (let x = 0; x < COLS; x++) {
-    ctx.fillText('v', x * TILE_SIZE + TILE_SIZE / 2, TILE_SIZE / 2);
+    if (GROUND_WALKABLE[ground[x]])
+      ctx.fillText('v', x * TILE_SIZE + TILE_SIZE / 2, TILE_SIZE / 2);
   }
-  // Goal markers
+  // Goal markers (only on walkable tiles)
   ctx.fillStyle = '#2a2a4a';
   for (let x = 0; x < COLS; x++) {
-    ctx.fillText('=', x * TILE_SIZE + TILE_SIZE / 2, (ROWS - 1) * TILE_SIZE + TILE_SIZE / 2);
+    if (GROUND_WALKABLE[ground[(ROWS - 1) * COLS + x]])
+      ctx.fillText('=', x * TILE_SIZE + TILE_SIZE / 2, (ROWS - 1) * TILE_SIZE + TILE_SIZE / 2);
   }
 }
 
@@ -1357,8 +1437,14 @@ function esc(s) { return s.replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
 // === INIT ===
 function startGame(mapIdx) {
-  // Clear grid
+  // Clear grid and ground
   grid.fill(0);
+  ground.fill(GROUND_GRASS);
+  // Top and bottom rows are always road
+  for (let x = 0; x < COLS; x++) {
+    ground[x] = GROUND_ROAD;
+    ground[(ROWS - 1) * COLS + x] = GROUND_ROAD;
+  }
   state.towers.length = 0;
   state.monsters.length = 0;
   state.effects.length = 0;
