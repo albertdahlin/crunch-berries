@@ -215,10 +215,12 @@ function startGameWithGround() {
   state.frame = 0;
   state.cursor = { x: 12, y: 24, visible: false };
   state.selectedTower = 0;
+  state.placeRotation = 0;
   state.message = '';
   state.messageTimer = 0;
   recomputePath();
   rebuildTowerButtons();
+  updateRotateButton();
   state.phase = 'PLACE';
   document.getElementById('hud').style.display = 'flex';
   document.getElementById('ui').style.display = 'flex';
@@ -261,6 +263,7 @@ const state = {
   effects: [],      // visual effects [{x,y,tx,ty,ttl,color}]
   cursor: { x: 12, y: 24, visible: false },
   selectedTower: 0,
+  placeRotation: 0,   // 0=up, 1=right, 2=down, 3=left (for pierce tower)
   wave: 0,
   lives: 20,
   gold: 50,
@@ -385,12 +388,24 @@ function isTopRowReachable(tempGrid) {
 }
 
 // === TOWER LOGIC ===
-function canPlaceTower(tx, ty) {
-  if (tx < 0 || tx + 1 >= COLS || ty < 0 || ty + 1 >= ROWS) return false;
-  // Don't place on spawn row (y=0) or goal row (y=ROWS-1)
-  if (ty < 1 || ty + 1 >= ROWS - 1) return false;
-  for (let dy = 0; dy < 2; dy++) {
-    for (let dx = 0; dx < 2; dx++) {
+const ROT_NAMES = ['Up', 'Right', 'Down', 'Left'];
+
+function getTowerSize(typeIdx, rotation) {
+  const type = CONFIG.towers[typeIdx];
+  if (type && type.pierce) {
+    return (rotation === 0 || rotation === 2) ? { w: 1, h: 2 } : { w: 2, h: 1 };
+  }
+  return { w: 2, h: 2 };
+}
+
+function canPlaceTower(tx, ty, typeIdx, rotation) {
+  if (typeIdx === undefined) typeIdx = state.selectedTower;
+  if (rotation === undefined) rotation = state.placeRotation;
+  const size = getTowerSize(typeIdx, rotation);
+  if (tx < 0 || tx + size.w > COLS || ty < 0 || ty + size.h > ROWS) return false;
+  if (ty < 1 || ty + size.h > ROWS - 1) return false;
+  for (let dy = 0; dy < size.h; dy++) {
+    for (let dx = 0; dx < size.w; dx++) {
       const idx = (ty + dy) * COLS + (tx + dx);
       if (grid[idx] !== 0) return false;
       if (!GROUND_BUILDABLE[ground[idx]]) return false;
@@ -404,6 +419,7 @@ function placeTower() {
   const tx = state.cursor.x;
   const ty = state.cursor.y;
   const type = CONFIG.towers[state.selectedTower];
+  const size = getTowerSize(state.selectedTower, state.placeRotation);
 
   if (state.gold < type.cost) {
     showMessage('Not enough gold!');
@@ -416,21 +432,22 @@ function placeTower() {
 
   // Tentative placement
   const tempGrid = new Uint8Array(grid);
-  for (let dy = 0; dy < 2; dy++)
-    for (let dx = 0; dx < 2; dx++)
+  for (let dy = 0; dy < size.h; dy++)
+    for (let dx = 0; dx < size.w; dx++)
       tempGrid[(ty + dy) * COLS + (tx + dx)] = 1;
 
   // Check if path still exists
   const pathBlocked = !isTopRowReachable(tempGrid);
 
   // Commit placement
-  for (let dy = 0; dy < 2; dy++)
-    for (let dx = 0; dx < 2; dx++)
+  for (let dy = 0; dy < size.h; dy++)
+    for (let dx = 0; dx < size.w; dx++)
       grid[(ty + dy) * COLS + (tx + dx)] = 1;
 
   state.towers.push({
     x: tx, y: ty,
     typeIdx: state.selectedTower,
+    rotation: state.placeRotation,
     hp: type.hp,
     maxHp: type.hp,
     lastFire: 0,
@@ -448,16 +465,17 @@ function removeTower(tower) {
   const idx = state.towers.indexOf(tower);
   if (idx === -1) return;
   state.towers.splice(idx, 1);
-  for (let dy = 0; dy < 2; dy++)
-    for (let dx = 0; dx < 2; dx++)
+  const size = getTowerSize(tower.typeIdx, tower.rotation);
+  for (let dy = 0; dy < size.h; dy++)
+    for (let dx = 0; dx < size.w; dx++)
       grid[(tower.y + dy) * COLS + (tower.x + dx)] = 0;
   recomputePath();
 }
 
 function distToTower(mx, my, tower) {
-  // Distance from monster to nearest tile of the 2x2 tower
-  const cx = Math.max(tower.x, Math.min(tower.x + 1, Math.floor(mx)));
-  const cy = Math.max(tower.y, Math.min(tower.y + 1, Math.floor(my)));
+  const size = getTowerSize(tower.typeIdx, tower.rotation);
+  const cx = Math.max(tower.x, Math.min(tower.x + size.w - 1, Math.floor(mx)));
+  const cy = Math.max(tower.y, Math.min(tower.y + size.h - 1, Math.floor(my)));
   return Math.abs(mx - cx) + Math.abs(my - cy);
 }
 
@@ -467,39 +485,26 @@ function updateTowers() {
     if (type.barricade) continue;
     if (state.frame - tower.lastFire < type.fireRate) continue;
 
-    const tcx = tower.x + 1;  // center of 2x2
-    const tcy = tower.y + 1;
+    const tSize = getTowerSize(tower.typeIdx, tower.rotation);
+    const tcx = tower.x + tSize.w / 2;
+    const tcy = tower.y + tSize.h / 2;
 
     if (type.pierce) {
-      // Find nearest monster to determine direction (horizontal or vertical only)
-      let nearest = null;
-      let nearDist = Infinity;
-      for (const m of state.monsters) {
-        if (m.hp <= 0) continue;
-        const d = Math.hypot(m.x - tcx, m.y - tcy);
-        if (d < nearDist && d <= type.range + 1) {
-          nearDist = d;
-          nearest = m;
-        }
-      }
-      if (!nearest) continue;
+      // Fixed direction based on tower rotation
+      const dir = tower.rotation * 2; // 0=up, 2=right, 4=down, 6=left
+      // Shoot origin: center of the short side facing the fire direction
+      let ox, oy;
+      if (tower.rotation === 0) { ox = tower.x + 0.5; oy = tower.y; }
+      else if (tower.rotation === 1) { ox = tower.x + 2; oy = tower.y + 0.5; }
+      else if (tower.rotation === 2) { ox = tower.x + 0.5; oy = tower.y + 2; }
+      else { ox = tower.x; oy = tower.y + 0.5; }
 
-      // Pick horizontal or vertical direction
-      const dx = nearest.x - tcx;
-      const dy = nearest.y - tcy;
-      let dir;
-      if (Math.abs(dx) > Math.abs(dy)) {
-        dir = dx > 0 ? 2 : 6;
-      } else {
-        dir = dy > 0 ? 4 : 0;
-      }
-
-      // Always fire full range ray and hit all monsters in corridor
+      // Check corridor for monsters and deal damage
       let hit = false;
       for (const m of state.monsters) {
         if (m.hp <= 0) continue;
-        const rx = m.x - tcx;
-        const ry = m.y - tcy;
+        const rx = m.x - ox;
+        const ry = m.y - oy;
         let inCorridor = false;
         if (dir === 0 && Math.abs(rx) < 1 && ry >= -type.range && ry <= 0) inCorridor = true;
         if (dir === 4 && Math.abs(rx) < 1 && ry >= 0 && ry <= type.range) inCorridor = true;
@@ -510,11 +515,11 @@ function updateTowers() {
           hit = true;
         }
       }
-      // Always show ray at max range
+      if (!hit) continue; // only fire when targets are in corridor
       tower.lastFire = state.frame;
-      const ex = tcx + DX[dir] * type.range;
-      const ey = tcy + DY[dir] * type.range;
-      state.effects.push({ x: tcx, y: tcy, tx: ex, ty: ey, ttl: 4, color: type.color, wide: true });
+      const ex = ox + DX[dir] * type.range;
+      const ey = oy + DY[dir] * type.range;
+      state.effects.push({ x: ox, y: oy, tx: ex, ty: ey, ttl: 4, color: type.color, wide: true });
 
     } else if (type.dot) {
       // DOT tower: prioritize monsters without DOT, then nearest in range
@@ -632,8 +637,9 @@ function updateMonsters() {
       }
 
       if (m.attacking) {
-        const tcx = m.attacking.x + 1;
-        const tcy = m.attacking.y + 1;
+        const aSize = getTowerSize(m.attacking.typeIdx, m.attacking.rotation);
+        const tcx = m.attacking.x + aSize.w / 2;
+        const tcy = m.attacking.y + aSize.h / 2;
         const dx = tcx - m.x;
         const dy = tcy - m.y;
         const dist = Math.hypot(dx, dy);
@@ -801,13 +807,15 @@ function setupInput() {
       }
       return;
     }
+    const pSize = getTowerSize(state.selectedTower, state.placeRotation);
     switch (e.key) {
       case 'ArrowUp':    state.cursor.y = Math.max(0, state.cursor.y - 1); state.cursor.visible = true; e.preventDefault(); break;
-      case 'ArrowDown':  state.cursor.y = Math.min(ROWS - 2, state.cursor.y + 1); state.cursor.visible = true; e.preventDefault(); break;
+      case 'ArrowDown':  state.cursor.y = Math.min(ROWS - pSize.h, state.cursor.y + 1); state.cursor.visible = true; e.preventDefault(); break;
       case 'ArrowLeft':  state.cursor.x = Math.max(0, state.cursor.x - 1); state.cursor.visible = true; e.preventDefault(); break;
-      case 'ArrowRight': state.cursor.x = Math.min(COLS - 2, state.cursor.x + 1); state.cursor.visible = true; e.preventDefault(); break;
+      case 'ArrowRight': state.cursor.x = Math.min(COLS - pSize.w, state.cursor.x + 1); state.cursor.visible = true; e.preventDefault(); break;
       case ' ': case 'Enter': placeTower(); e.preventDefault(); break;
       case 'w': case 'W': startWave(); break;
+      case 'r': case 'R': rotatePlacement(); break;
       default: {
         const n = parseInt(e.key);
         if (n >= 1 && n <= CONFIG.towers.length) selectTowerType(n - 1);
@@ -866,6 +874,7 @@ function setupInput() {
     state.cursor.visible = true;
     placeTower();
   });
+  document.getElementById('btn-rotate').addEventListener('click', rotatePlacement);
   document.getElementById('btn-settings').addEventListener('click', () => {
     state.phase = 'MAP_SELECT';
     document.getElementById('hud').style.display = 'none';
@@ -896,6 +905,27 @@ function selectTowerType(idx) {
     document.querySelectorAll('#tower-buttons button').forEach((btn) => {
       btn.classList.toggle('selected', parseInt(btn.dataset.tower) === idx);
     });
+    updateRotateButton();
+  }
+}
+
+function rotatePlacement() {
+  state.placeRotation = (state.placeRotation + 1) % 4;
+  // Clamp cursor to new footprint bounds
+  const size = getTowerSize(state.selectedTower, state.placeRotation);
+  state.cursor.x = Math.min(state.cursor.x, COLS - size.w);
+  state.cursor.y = Math.min(state.cursor.y, ROWS - size.h);
+  updateRotateButton();
+}
+
+function updateRotateButton() {
+  const btn = document.getElementById('btn-rotate');
+  const type = CONFIG.towers[state.selectedTower];
+  if (type && type.pierce) {
+    btn.style.display = '';
+    btn.textContent = 'Rot: ' + ROT_NAMES[state.placeRotation] + ' (R)';
+  } else {
+    btn.style.display = 'none';
   }
 }
 
@@ -1011,20 +1041,23 @@ function drawGrid() {
 function drawTowers() {
   for (const tower of state.towers) {
     const type = CONFIG.towers[tower.typeIdx];
+    const size = getTowerSize(tower.typeIdx, tower.rotation);
     const px = tower.x * TILE_SIZE;
     const py = tower.y * TILE_SIZE;
+    const tw = size.w * TILE_SIZE;
+    const th = size.h * TILE_SIZE;
 
     // Background
     ctx.fillStyle = type.bg;
-    ctx.fillRect(px + 1, py + 1, TILE_SIZE * 2 - 2, TILE_SIZE * 2 - 2);
+    ctx.fillRect(px + 1, py + 1, tw - 2, th - 2);
 
     // HP bar
     if (tower.hp < tower.maxHp) {
       const hpRatio = tower.hp / tower.maxHp;
       ctx.fillStyle = '#333';
-      ctx.fillRect(px + 2, py + TILE_SIZE * 2 - 4, TILE_SIZE * 2 - 4, 3);
+      ctx.fillRect(px + 2, py + th - 4, tw - 4, 3);
       ctx.fillStyle = hpRatio > 0.5 ? '#4caf50' : hpRatio > 0.25 ? '#ff9800' : '#f44336';
-      ctx.fillRect(px + 2, py + TILE_SIZE * 2 - 4, (TILE_SIZE * 2 - 4) * hpRatio, 3);
+      ctx.fillRect(px + 2, py + th - 4, (tw - 4) * hpRatio, 3);
     }
 
     // Letter at center
@@ -1032,7 +1065,32 @@ function drawTowers() {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = type.color;
-    ctx.fillText(type.letter, px + TILE_SIZE, py + TILE_SIZE);
+    ctx.fillText(type.letter, px + tw / 2, py + th / 2);
+
+    // Direction arrow for pierce towers
+    if (type.pierce) {
+      const as = TILE_SIZE * 0.3;
+      ctx.fillStyle = type.color;
+      ctx.beginPath();
+      if (tower.rotation === 0) {
+        ctx.moveTo(px + tw / 2, py + 2);
+        ctx.lineTo(px + tw / 2 - as, py + 2 + as);
+        ctx.lineTo(px + tw / 2 + as, py + 2 + as);
+      } else if (tower.rotation === 1) {
+        ctx.moveTo(px + tw - 2, py + th / 2);
+        ctx.lineTo(px + tw - 2 - as, py + th / 2 - as);
+        ctx.lineTo(px + tw - 2 - as, py + th / 2 + as);
+      } else if (tower.rotation === 2) {
+        ctx.moveTo(px + tw / 2, py + th - 2);
+        ctx.lineTo(px + tw / 2 - as, py + th - 2 - as);
+        ctx.lineTo(px + tw / 2 + as, py + th - 2 - as);
+      } else {
+        ctx.moveTo(px + 2, py + th / 2);
+        ctx.lineTo(px + 2 + as, py + th / 2 - as);
+        ctx.lineTo(px + 2 + as, py + th / 2 + as);
+      }
+      ctx.fill();
+    }
   }
 }
 
@@ -1075,34 +1133,80 @@ function drawCursor() {
   if (!state.cursor.visible) return;
   const px = state.cursor.x * TILE_SIZE;
   const py = state.cursor.y * TILE_SIZE;
+  const type = CONFIG.towers[state.selectedTower];
+  const size = getTowerSize(state.selectedTower, state.placeRotation);
+  const tw = size.w * TILE_SIZE;
+  const th = size.h * TILE_SIZE;
   const canPlace = canPlaceTower(state.cursor.x, state.cursor.y);
 
-  // Cursor highlight (2x2)
+  // Cursor highlight
   ctx.fillStyle = canPlace ? 'rgba(255,255,255,0.15)' : 'rgba(255,80,80,0.15)';
-  ctx.fillRect(px, py, TILE_SIZE * 2, TILE_SIZE * 2);
+  ctx.fillRect(px, py, tw, th);
   ctx.strokeStyle = canPlace ? 'rgba(255,255,255,0.5)' : 'rgba(255,80,80,0.5)';
   ctx.lineWidth = 1;
-  ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE * 2 - 1, TILE_SIZE * 2 - 1);
+  ctx.strokeRect(px + 0.5, py + 0.5, tw - 1, th - 1);
 
   // Show selected tower letter
-  const type = CONFIG.towers[state.selectedTower];
   ctx.font = 'bold ' + TILE_SIZE + 'px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = canPlace ? 'rgba(255,255,255,0.5)' : 'rgba(255,80,80,0.3)';
-  ctx.fillText(type.letter, px + TILE_SIZE, py + TILE_SIZE);
+  ctx.fillText(type.letter, px + tw / 2, py + th / 2);
+
+  // Direction arrow for pierce
+  if (type.pierce && canPlace) {
+    const as = TILE_SIZE * 0.3;
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.beginPath();
+    if (state.placeRotation === 0) {
+      ctx.moveTo(px + tw / 2, py + 2);
+      ctx.lineTo(px + tw / 2 - as, py + 2 + as);
+      ctx.lineTo(px + tw / 2 + as, py + 2 + as);
+    } else if (state.placeRotation === 1) {
+      ctx.moveTo(px + tw - 2, py + th / 2);
+      ctx.lineTo(px + tw - 2 - as, py + th / 2 - as);
+      ctx.lineTo(px + tw - 2 - as, py + th / 2 + as);
+    } else if (state.placeRotation === 2) {
+      ctx.moveTo(px + tw / 2, py + th - 2);
+      ctx.lineTo(px + tw / 2 - as, py + th - 2 - as);
+      ctx.lineTo(px + tw / 2 + as, py + th - 2 - as);
+    } else {
+      ctx.moveTo(px + 2, py + th / 2);
+      ctx.lineTo(px + 2 + as, py + th / 2 - as);
+      ctx.lineTo(px + 2 + as, py + th / 2 + as);
+    }
+    ctx.fill();
+  }
 
   // Range preview
   if (canPlace) {
     const range = type.range;
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-    ctx.lineWidth = 0.5;
-    const rcx = px + TILE_SIZE;
-    const rcy = py + TILE_SIZE;
-    const rr = (range + 1) * TILE_SIZE;
-    ctx.beginPath();
-    ctx.arc(rcx, rcy, rr, 0, Math.PI * 2);
-    ctx.stroke();
+    if (type.pierce) {
+      // Show ray line preview in fire direction
+      let ox, oy;
+      if (state.placeRotation === 0) { ox = px + tw / 2; oy = py; }
+      else if (state.placeRotation === 1) { ox = px + tw; oy = py + th / 2; }
+      else if (state.placeRotation === 2) { ox = px + tw / 2; oy = py + th; }
+      else { ox = px; oy = py + th / 2; }
+      const dir = state.placeRotation * 2;
+      const ex = ox + DX[dir] * range * TILE_SIZE;
+      const ey = oy + DY[dir] * range * TILE_SIZE;
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = Math.max(2, TILE_SIZE * 0.3);
+      ctx.beginPath();
+      ctx.moveTo(ox, oy);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+    } else {
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      ctx.lineWidth = 0.5;
+      const rcx = px + tw / 2;
+      const rcy = py + th / 2;
+      const rr = (range + 1) * TILE_SIZE;
+      ctx.beginPath();
+      ctx.arc(rcx, rcy, rr, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
 }
 
