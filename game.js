@@ -202,6 +202,87 @@ const MAPS = [
       }
     }
   },
+  {
+    name: 'Swamp Road',
+    desc: 'Road through swamp, slow off-road',
+    setup: function() {
+      // Fill everything with swamp first (rows 1 to ROWS-2)
+      for (let y = 1; y < ROWS - 1; y++)
+        for (let x = 0; x < COLS; x++)
+          ground[y * COLS + x] = GROUND_SWAMP;
+
+      // Generate a winding road through the swamp
+      const roadW = 3;
+      let cx = Math.floor(COLS / 2) - 1;
+      let drift = 0;
+      for (let y = 1; y < ROWS - 1; y++) {
+        // Lay road tiles
+        for (let dx = 0; dx < roadW; dx++) {
+          const rx = cx + dx;
+          if (rx >= 0 && rx < COLS) ground[y * COLS + rx] = GROUND_ROAD;
+        }
+        // Wander left/right
+        drift += (Math.random() - 0.5) * 1.8;
+        if (drift > 1) { cx++; drift = 0; }
+        else if (drift < -1) { cx--; drift = 0; }
+        // Stay in bounds
+        cx = Math.max(1, Math.min(COLS - roadW - 1, cx));
+        // Occasional sharp turn
+        if (y % 8 === 0 && y > 2 && y < ROWS - 4) {
+          const turn = (Math.random() < 0.5 ? -1 : 1) * (3 + Math.floor(Math.random() * 3));
+          const newCx = Math.max(1, Math.min(COLS - roadW - 1, cx + turn));
+          // Horizontal bridge
+          const minX = Math.min(cx, newCx);
+          const maxX = Math.max(cx + roadW, newCx + roadW);
+          for (let bx = minX; bx < maxX; bx++) {
+            if (bx >= 0 && bx < COLS) {
+              ground[y * COLS + bx] = GROUND_ROAD;
+              if (y + 1 < ROWS - 1) ground[(y + 1) * COLS + bx] = GROUND_ROAD;
+            }
+          }
+          cx = newCx;
+        }
+      }
+      // Scatter water pools in the swamp
+      for (let i = 0; i < 25; i++) {
+        const wx = Math.floor(Math.random() * COLS);
+        const wy = 2 + Math.floor(Math.random() * (ROWS - 4));
+        if (ground[wy * COLS + wx] !== GROUND_SWAMP) continue;
+        ground[wy * COLS + wx] = GROUND_WATER;
+        if (!isTopRowReachable()) {
+          ground[wy * COLS + wx] = GROUND_SWAMP;
+          continue;
+        }
+        // Cluster a few more
+        for (let c = 0; c < 2; c++) {
+          const nx = wx + Math.floor(Math.random() * 3) - 1;
+          const ny = wy + Math.floor(Math.random() * 3) - 1;
+          if (nx < 0 || nx >= COLS || ny < 2 || ny >= ROWS - 2) continue;
+          if (ground[ny * COLS + nx] !== GROUND_SWAMP) continue;
+          ground[ny * COLS + nx] = GROUND_WATER;
+          if (!isTopRowReachable()) ground[ny * COLS + nx] = GROUND_SWAMP;
+        }
+      }
+      // Add some rock outcrops (buildable islands in the swamp)
+      for (let i = 0; i < 12; i++) {
+        const rx = Math.floor(Math.random() * (COLS - 2)) + 1;
+        const ry = 3 + Math.floor(Math.random() * (ROWS - 6));
+        if (ground[ry * COLS + rx] !== GROUND_SWAMP) continue;
+        ground[ry * COLS + rx] = GROUND_ROCK;
+        if (!isTopRowReachable()) { ground[ry * COLS + rx] = GROUND_SWAMP; continue; }
+        // Small cluster
+        for (let dy = 0; dy < 2; dy++) {
+          for (let dx = 0; dx < 2; dx++) {
+            const nx = rx + dx, ny = ry + dy;
+            if (nx >= COLS || ny >= ROWS - 2) continue;
+            if (ground[ny * COLS + nx] !== GROUND_SWAMP) continue;
+            ground[ny * COLS + nx] = GROUND_ROCK;
+            if (!isTopRowReachable()) ground[ny * COLS + nx] = GROUND_SWAMP;
+          }
+        }
+      }
+    }
+  },
 ];
 
 function placeMapBarricade(x, y) {
