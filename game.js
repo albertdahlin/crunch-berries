@@ -30,6 +30,7 @@ const DEFAULT_CONFIG = {
     baseCounts: [6, 3, 2],
     unlockWave: [1, 2, 3],
     scaleEvery: 2,
+    hpScale: 20,
     intervalStart: 40,
     intervalDecay: 3,
     intervalMin: 10,
@@ -63,7 +64,8 @@ function getWaveConfig(waveNum) {
     return waveNum >= unlock ? Math.round(base * scale) : 0;
   });
   const interval = Math.max(w.intervalMin, w.intervalStart - (waveNum - 1) * w.intervalDecay);
-  return { counts, interval };
+  const hpMult = 1 + (waveNum - 1) * (w.hpScale || 0) / 100;
+  return { counts, interval, hpMult };
 }
 
 // === GROUND TYPES ===
@@ -681,7 +683,7 @@ function updateProjectiles() {
 }
 
 // === MONSTER LOGIC ===
-function spawnMonster(typeIdx) {
+function spawnMonster(typeIdx, hpMult) {
   const type = CONFIG.monsters[typeIdx];
   // Find a reachable spawn column
   const candidates = [];
@@ -696,11 +698,12 @@ function spawnMonster(typeIdx) {
   }
   const sx = candidates[Math.floor(Math.random() * candidates.length)];
 
+  const scaledHp = Math.round(type.hp * (hpMult || 1));
   state.monsters.push({
     x: sx + 0.3 + Math.random() * 0.4,
     y: 0.3 + Math.random() * 0.4,
-    hp: type.hp,
-    maxHp: type.hp,
+    hp: scaledHp,
+    maxHp: scaledHp,
     speed: type.speed,
     typeIdx: typeIdx,
     reward: type.reward,
@@ -835,7 +838,7 @@ function startWave() {
   const w = getWaveConfig(state.wave);
   // Spawn all monsters at once
   w.counts.forEach((count, i) => {
-    for (let j = 0; j < count; j++) spawnMonster(i);
+    for (let j = 0; j < count; j++) spawnMonster(i, w.hpMult);
   });
   state.phase = 'WAVE';
   requestWakeLock();
@@ -1815,6 +1818,7 @@ function populateWaveFields() {
     wavesDiv.appendChild(div);
   });
   document.getElementById('cfg-scaleEvery').value = CONFIG.waves.scaleEvery;
+  document.getElementById('cfg-hpScale').value = CONFIG.waves.hpScale ?? 20;
   document.getElementById('cfg-intervalStart').value = CONFIG.waves.intervalStart;
   document.getElementById('cfg-intervalDecay').value = CONFIG.waves.intervalDecay;
   document.getElementById('cfg-intervalMin').value = CONFIG.waves.intervalMin;
@@ -1886,6 +1890,7 @@ function readSettings() {
   CONFIG.waves.baseCounts = Array.from(baseDivs).map(d => +d.querySelector('.wv-base').value || 0);
   CONFIG.waves.unlockWave = Array.from(baseDivs).map(d => +d.querySelector('.wv-unlock').value || 1);
   CONFIG.waves.scaleEvery = +document.getElementById('cfg-scaleEvery').value || 2;
+  CONFIG.waves.hpScale = +document.getElementById('cfg-hpScale').value || 0;
   CONFIG.waves.intervalStart = +document.getElementById('cfg-intervalStart').value || 40;
   CONFIG.waves.intervalDecay = +document.getElementById('cfg-intervalDecay').value || 3;
   CONFIG.waves.intervalMin = +document.getElementById('cfg-intervalMin').value || 10;
