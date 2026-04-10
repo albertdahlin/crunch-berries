@@ -1700,6 +1700,48 @@ function resetSettings() {
   populateSettings();
 }
 
+function exportData() {
+  readSettings();
+  const data = JSON.stringify({ config: CONFIG, maps: savedMaps }, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'tower-defence-data.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.addEventListener('change', () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        if (data.config && data.config.towers && data.config.monsters && data.config.waves && data.config.game) {
+          CONFIG = data.config;
+          localStorage.setItem('td-config', JSON.stringify(CONFIG));
+        }
+        if (Array.isArray(data.maps)) {
+          savedMaps = data.maps;
+          saveMapsToStorage();
+        }
+        populateSettings();
+        showMessage('Imported!');
+      } catch(e) {
+        showMessage('Invalid file');
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
+
 function populateSettings() {
   // Towers
   const towersDiv = document.getElementById('settings-towers');
