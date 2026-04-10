@@ -930,6 +930,7 @@ function setupInput() {
   });
   document.getElementById('btn-settings').addEventListener('click', () => {
     state.phase = 'MAP_SELECT';
+    document.getElementById('hud').style.display = 'none';
     document.getElementById('ui').style.display = 'none';
     openSettings();
   });
@@ -1196,47 +1197,24 @@ function drawMapSelect() {
   ctx.fillStyle = '#444';
   const instrY = settingsY + settingsBtnH + TILE_SIZE;
   ctx.fillText('Tap a map to play, or S for settings', centerX, instrY);
+
+  // Version
+  ctx.fillStyle = '#333';
+  ctx.fillText('v' + VERSION, centerX, instrY + TILE_SIZE * 1.5);
 }
 
 function drawUI() {
-  // Top bar - scale with tile size
-  const barH = TILE_SIZE;
+  // Update sticky HTML HUD
+  document.getElementById('hud-gold').textContent = 'G:' + state.gold;
+  document.getElementById('hud-lives').textContent = 'L:' + state.lives;
+  document.getElementById('hud-wave').textContent = 'W:' + state.wave;
+  document.getElementById('hud-score').textContent = 'S:' + state.score;
+  document.getElementById('hud-version').textContent = 'v' + VERSION;
+  const phaseEl = document.getElementById('hud-phase');
+  phaseEl.textContent = state.phase === 'PLACE' ? 'PLACE TOWERS' : state.phase === 'WAVE' ? 'WAVE ' + state.wave : 'GAME OVER';
+  phaseEl.style.color = state.phase === 'WAVE' ? '#ff9800' : state.phase === 'GAMEOVER' ? '#f44336' : '#4caf50';
+
   const fontSize = Math.max(10, Math.floor(TILE_SIZE * 0.7));
-  const pad = Math.floor(TILE_SIZE * 0.2);
-  const col = Math.floor(CANVAS_W / 6);  // divide top bar into 6 columns
-
-  ctx.fillStyle = 'rgba(0,0,0,0.7)';
-  ctx.fillRect(0, 0, CANVAS_W, barH);
-
-  ctx.font = fontSize + 'px monospace';
-  ctx.textBaseline = 'middle';
-  ctx.textAlign = 'left';
-  const cy = barH / 2;
-
-  // Gold
-  ctx.fillStyle = '#ffd700';
-  ctx.fillText('G:' + state.gold, pad, cy);
-
-  // Lives
-  ctx.fillStyle = '#ef5350';
-  ctx.fillText('L:' + state.lives, col, cy);
-
-  // Wave
-  ctx.fillStyle = '#81d4fa';
-  ctx.fillText('W:' + state.wave, col * 2, cy);
-
-  // Score
-  ctx.fillStyle = '#aaa';
-  ctx.fillText('S:' + state.score, col * 3, cy);
-
-  // Version
-  ctx.fillStyle = '#555';
-  ctx.fillText('v' + VERSION, col * 4, cy);
-
-  // Phase
-  ctx.fillStyle = state.phase === 'WAVE' ? '#ff9800' : state.phase === 'GAMEOVER' ? '#f44336' : '#4caf50';
-  ctx.textAlign = 'right';
-  ctx.fillText(state.phase === 'PLACE' ? 'PLACE TOWERS' : state.phase === 'WAVE' ? 'WAVE ' + state.wave : 'GAME OVER', CANVAS_W - pad, cy);
 
   // Message
   if (state.messageTimer > 0) {
@@ -1544,6 +1522,7 @@ function startGame(mapIdx) {
   recomputePath();
   rebuildTowerButtons();
   state.phase = 'PLACE';
+  document.getElementById('hud').style.display = 'flex';
   document.getElementById('ui').style.display = 'flex';
 }
 
@@ -1561,6 +1540,7 @@ function rebuildTowerButtons() {
 }
 
 function init() {
+  document.getElementById('hud').style.display = 'none';
   document.getElementById('ui').style.display = 'none';
   setupInput();
   requestAnimationFrame(gameLoop);

@@ -21,6 +21,26 @@ canvas {
   display: block;
   width: 100vw;
 }
+#hud {
+  position: sticky;
+  top: 0;
+  display: none;
+  width: 100%;
+  background: rgba(10, 10, 26, 0.9);
+  z-index: 10;
+  font-family: monospace;
+  font-size: 14px;
+  padding: 6px 8px;
+  gap: 12px;
+  justify-content: space-between;
+}
+#hud span { white-space: nowrap; }
+.hud-gold { color: #ffd700; }
+.hud-lives { color: #ef5350; }
+.hud-wave { color: #81d4fa; }
+.hud-score { color: #aaa; }
+.hud-version { color: #555; }
+.hud-phase { font-weight: bold; }
 #ui {
   position: sticky;
   bottom: 0;
@@ -143,6 +163,14 @@ canvas {
 </style>
 </head>
 <body>
+<div id="hud">
+  <span class="hud-gold" id="hud-gold">G:0</span>
+  <span class="hud-lives" id="hud-lives">L:0</span>
+  <span class="hud-wave" id="hud-wave">W:0</span>
+  <span class="hud-score" id="hud-score">S:0</span>
+  <span class="hud-version" id="hud-version"></span>
+  <span class="hud-phase" id="hud-phase"></span>
+</div>
 <canvas id="game"></canvas>
 <div id="ui">
   <span id="tower-buttons"></span>
