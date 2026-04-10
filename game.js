@@ -77,9 +77,9 @@ const GROUND_WALKABLE   = [true, true, false, true, false];   // can monsters wa
 const GROUND_BUILDABLE  = [true, false, false, false, true];   // can towers be placed?
 const GROUND_SPEED_MULT = [1.0, 1.0, 1.0, 0.5, 1.0];         // monster speed multiplier
 
-const GROUND_BG         = ['#1a2a1a', '#2a2a2a', '#0a1a3a', '#2a2a0a', '#2a2a2a'];
-const GROUND_CHAR       = ['', '', '~', ',', '#'];
-const GROUND_CHAR_COLOR = ['', '', '#1a3a6a', '#4a4a1a', '#3a3a3a'];
+const GROUND_BG         = ['#1a2a1a', '#2a2218', '#0a1a3a', '#2a2a0a', '#33333a'];
+const GROUND_CHAR       = ['', '.', '~', ',', '#'];
+const GROUND_CHAR_COLOR = ['', '#3a3028', '#1a3a6a', '#4a4a1a', '#44445a'];
 
 // === SAVED MAPS ===
 const GROUND_NAMES = ['Grass', 'Road', 'Water', 'Swamp', 'Rock'];
@@ -146,6 +146,7 @@ function openMapEditor(mapIndex) {
   document.getElementById('hud').style.display = 'none';
   document.getElementById('ui').style.display = 'none';
   document.getElementById('editor-ui').style.display = 'flex';
+  document.getElementById('editor-map-name').value = editor.mapName;
   rebuildBrushButtons();
 }
 
@@ -156,7 +157,7 @@ function rebuildBrushButtons() {
     const btn = document.createElement('button');
     btn.textContent = GROUND_NAMES[i];
     btn.dataset.brush = i;
-    btn.style.borderColor = GROUND_BG[i] === '#2a2a2a' ? '#888' : GROUND_BG[i];
+    btn.style.borderColor = GROUND_BG[i];
     if (i === editor.brush) btn.classList.add('selected');
     btn.addEventListener('click', () => {
       editor.brush = i;
@@ -181,6 +182,8 @@ function paintTile(x, y) {
 }
 
 function saveMap() {
+  const nameInput = document.getElementById('editor-map-name');
+  editor.mapName = (nameInput.value || '').trim() || 'My Map';
   const data = groundToMapData();
   if (editor.mapIndex >= 0) {
     savedMaps[editor.mapIndex].data = data;
