@@ -500,15 +500,22 @@ function applySpeedMod(monster, factor, duration) {
   monster.speedMod = { factor: factor, remaining: duration || 60 };
 }
 
-function applySplash(cx, cy, radius, baseDamage, damageType, color, excludeMonster) {
+function applySplash(cx, cy, radius, towerType, excludeMonster) {
+  const dmgType = towerType.damageType || 'physical';
   for (const m of state.monsters) {
     if (m.hp <= 0 || m === excludeMonster) continue;
     const d = Math.hypot(m.x - cx, m.y - cy);
     if (d <= radius) {
-      applyDamage(m, baseDamage, damageType);
+      applyDamage(m, towerType.damage, dmgType);
+      if (towerType.speedFactor && towerType.speedFactor !== 1) {
+        applySpeedMod(m, towerType.speedFactor, towerType.speedDuration);
+      }
+      if (towerType.dot) {
+        m.dot = { dps: towerType.dot.dps, remaining: towerType.dot.duration, damageType: dmgType };
+      }
     }
   }
-  state.effects.push({ type: 'circle', x: cx, y: cy, radius: radius, ttl: 8, color: color });
+  state.effects.push({ type: 'circle', x: cx, y: cy, radius: radius, ttl: 8, color: towerType.color });
 }
 
 function updateTowers() {
@@ -619,10 +626,10 @@ function updateTowers() {
           applySpeedMod(nearest, type.speedFactor, type.speedDuration);
         }
         if (type.splashRadius > 0) {
-          applySplash(nearest.x, nearest.y, type.splashRadius, type.damage, dmgType, type.color, nearest);
+          applySplash(nearest.x, nearest.y, type.splashRadius, type, nearest);
         }
+        state.effects.push({ x: tcx, y: tcy, tx: nearest.x, ty: nearest.y, ttl: 4, color: type.color });
       }
-      state.effects.push({ x: tcx, y: tcy, tx: nearest.x, ty: nearest.y, ttl: 4, color: type.color });
     }
   }
 }
@@ -663,7 +670,7 @@ function updateProjectiles() {
         }
       }
       if (type.splashRadius > 0) {
-        applySplash(p.x, p.y, type.splashRadius, p.damage, dmgType, type.color, hitMonster);
+        applySplash(p.x, p.y, type.splashRadius, type, hitMonster);
       }
       state.projectiles.splice(i, 1);
     }
