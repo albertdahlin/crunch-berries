@@ -19,7 +19,7 @@ const DEFAULT_CONFIG = {
     { name: 'Range',     letter: 'R', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 5, damageType: 'physical' },
     { name: 'DOT',       letter: 'D', color: '#81c784', bg: '#2e7d32', range: 1, damage: 0, fireRate: 30, cost: 20, hp: 8, damageType: 'fire', dot: { dps: 1, duration: 90 } },
     { name: 'Pierce',    letter: 'P', color: '#ce93d8', bg: '#6a1b9a', range: 5, damage: 1, fireRate: 45, cost: 25, hp: 5, damageType: 'lightning', pierce: true },
-    { name: 'Barricade', letter: 'B', color: '#90a4ae', bg: '#455a64', range: 0, damage: 0, fireRate: 9999, cost: 3, hp: 15, barricade: true },
+    { name: 'Barricade', letter: 'B', color: '#90a4ae', bg: '#455a64', range: 0, damage: 0, fireRate: 9999, cost: 3, hp: 15 },
   ],
   monsters: [
     { name: 'Normal', letter: 'N', color: '#ef5350', hp: 12, speed: 0.08, reward: 5 },
@@ -514,7 +514,7 @@ function applySplash(cx, cy, radius, baseDamage, damageType, color, excludeMonst
 function updateTowers() {
   for (const tower of state.towers) {
     const type = CONFIG.towers[tower.typeIdx];
-    if (type.barricade) continue;
+    if (type.range <= 0 || (type.damage <= 0 && !type.dot)) continue;
     if (state.frame - tower.lastFire < type.fireRate) continue;
 
     const tSize = getTowerSize(tower.typeIdx, tower.rotation);
@@ -1743,7 +1743,6 @@ function createTowerFields(t, i) {
     '</div>' +
     '<div class="cfg-row">' +
       '<label><input type="checkbox" class="tw-pierce"' + (t.pierce ? ' checked' : '') + '> Pierce</label>' +
-      '<label><input type="checkbox" class="tw-barricade"' + (t.barricade ? ' checked' : '') + '> Barricade</label>' +
       '<label><input type="checkbox" class="tw-hasDot"' + (t.dot ? ' checked' : '') + '> DOT</label>' +
     '</div>' +
     '<div class="cfg-row cfg-dot-fields"' + (t.dot ? '' : ' style="display:none"') + '>' +
@@ -1827,7 +1826,6 @@ function readSettings() {
       hp: +div.querySelector('.tw-hp').value || 1,
     };
     if (div.querySelector('.tw-pierce').checked) t.pierce = true;
-    if (div.querySelector('.tw-barricade').checked) t.barricade = true;
     if (div.querySelector('.tw-hasDot').checked) {
       t.dot = {
         dps: +div.querySelector('.tw-dotDps').value || 1,
