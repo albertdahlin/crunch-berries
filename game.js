@@ -598,12 +598,15 @@ function updateTowers() {
       tower.lastFire = state.frame;
 
       if (type.projectileSpeed > 0) {
-        // Fire a projectile instead of instant damage
+        // Fire a projectile on a fixed trajectory toward target's current position
+        const dx = nearest.x - tcx;
+        const dy = nearest.y - tcy;
+        const dist = Math.hypot(dx, dy) || 1;
         state.projectiles.push({
           x: tcx, y: tcy,
           tx: nearest.x, ty: nearest.y,
-          target: nearest,
-          speed: type.projectileSpeed,
+          vx: (dx / dist) * type.projectileSpeed,
+          vy: (dy / dist) * type.projectileSpeed,
           damage: type.damage,
           towerTypeIdx: tower.typeIdx,
           color: type.color,
@@ -629,36 +632,40 @@ function updateProjectiles() {
   for (let i = state.projectiles.length - 1; i >= 0; i--) {
     const p = state.projectiles[i];
 
-    // Track living target (homing)
-    if (p.target && p.target.hp > 0) {
-      p.tx = p.target.x;
-      p.ty = p.target.y;
-    }
+    // Move along fixed trajectory
+    p.x += p.vx;
+    p.y += p.vy;
 
+    // Check if projectile reached or passed the target point
     const dx = p.tx - p.x;
     const dy = p.ty - p.y;
-    const dist = Math.hypot(dx, dy);
+    // Dot product with velocity: negative means we've passed the target
+    const dot = dx * p.vx + dy * p.vy;
 
-    if (dist <= p.speed) {
-      // Impact
+    if (dot <= 0) {
+      // Impact at target location
+      p.x = p.tx;
+      p.y = p.ty;
       const type = CONFIG.towers[p.towerTypeIdx];
       const dmgType = type.damageType || 'physical';
-      if (p.target && p.target.hp > 0) {
-        applyDamage(p.target, p.damage, dmgType);
+      // Direct hit: damage the closest monster at impact point
+      let hitMonster = null;
+      let hitDist = 1.0; // max distance for direct hit
+      for (const m of state.monsters) {
+        if (m.hp <= 0) continue;
+        const d = Math.hypot(m.x - p.x, m.y - p.y);
+        if (d < hitDist) { hitDist = d; hitMonster = m; }
+      }
+      if (hitMonster) {
+        applyDamage(hitMonster, p.damage, dmgType);
         if (type.speedFactor && type.speedFactor !== 1) {
-          applySpeedMod(p.target, type.speedFactor, type.speedDuration);
+          applySpeedMod(hitMonster, type.speedFactor, type.speedDuration);
         }
-        if (type.splashRadius > 0) {
-          applySplash(p.tx, p.ty, type.splashRadius, p.damage, dmgType, type.color, p.target);
-        }
-      } else if (type.splashRadius > 0) {
-        // Target died in flight, still splash at destination
-        applySplash(p.tx, p.ty, type.splashRadius, p.damage, dmgType, type.color, null);
+      }
+      if (type.splashRadius > 0) {
+        applySplash(p.x, p.y, type.splashRadius, p.damage, dmgType, type.color, hitMonster);
       }
       state.projectiles.splice(i, 1);
-    } else {
-      p.x += (dx / dist) * p.speed;
-      p.y += (dy / dist) * p.speed;
     }
   }
 }
