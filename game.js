@@ -220,7 +220,6 @@ function startGameWithGround() {
   state.messageTimer = 0;
   recomputePath();
   rebuildTowerButtons();
-  updateRotateButton();
   state.phase = 'PLACE';
   document.getElementById('hud').style.display = 'flex';
   document.getElementById('ui').style.display = 'flex';
@@ -815,7 +814,6 @@ function setupInput() {
       case 'ArrowRight': state.cursor.x = Math.min(COLS - pSize.w, state.cursor.x + 1); state.cursor.visible = true; e.preventDefault(); break;
       case ' ': case 'Enter': placeTower(); e.preventDefault(); break;
       case 'w': case 'W': startWave(); break;
-      case 'r': case 'R': rotatePlacement(); break;
       default: {
         const n = parseInt(e.key);
         if (n >= 1 && n <= CONFIG.towers.length) selectTowerType(n - 1);
@@ -874,7 +872,6 @@ function setupInput() {
     state.cursor.visible = true;
     placeTower();
   });
-  document.getElementById('btn-rotate').addEventListener('click', rotatePlacement);
   document.getElementById('btn-settings').addEventListener('click', () => {
     state.phase = 'MAP_SELECT';
     document.getElementById('hud').style.display = 'none';
@@ -901,32 +898,37 @@ function setupInput() {
 
 function selectTowerType(idx) {
   if (idx >= 0 && idx < CONFIG.towers.length) {
+    if (state.selectedTower === idx && CONFIG.towers[idx].pierce) {
+      // Already selected pierce tower: rotate
+      rotatePlacement();
+      return;
+    }
     state.selectedTower = idx;
     document.querySelectorAll('#tower-buttons button').forEach((btn) => {
       btn.classList.toggle('selected', parseInt(btn.dataset.tower) === idx);
     });
-    updateRotateButton();
+    updateTowerButtonLabels();
   }
 }
 
 function rotatePlacement() {
   state.placeRotation = (state.placeRotation + 1) % 4;
-  // Clamp cursor to new footprint bounds
   const size = getTowerSize(state.selectedTower, state.placeRotation);
   state.cursor.x = Math.min(state.cursor.x, COLS - size.w);
   state.cursor.y = Math.min(state.cursor.y, ROWS - size.h);
-  updateRotateButton();
+  updateTowerButtonLabels();
 }
 
-function updateRotateButton() {
-  const btn = document.getElementById('btn-rotate');
-  const type = CONFIG.towers[state.selectedTower];
-  if (type && type.pierce) {
-    btn.style.display = '';
-    btn.textContent = 'Rot: ' + ROT_NAMES[state.placeRotation] + ' (R)';
-  } else {
-    btn.style.display = 'none';
-  }
+function updateTowerButtonLabels() {
+  document.querySelectorAll('#tower-buttons button').forEach((btn) => {
+    const i = parseInt(btn.dataset.tower);
+    const t = CONFIG.towers[i];
+    let label = (i + 1) + ': ' + t.name + ' (' + t.cost + 'g)';
+    if (t.pierce && state.selectedTower === i) {
+      label += ' ' + ROT_NAMES[state.placeRotation];
+    }
+    btn.textContent = label;
+  });
 }
 
 function showMessage(msg) {
