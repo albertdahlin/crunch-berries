@@ -1471,17 +1471,20 @@ function drawTowers() {
     const level = tower.level || 0;
     if (level > 0) {
       const starColors = ['', '#cd7f32', '#cd7f32', '#cd7f32', '#c0c0c0', '#ffd700'];
+      const starSizes = ['', 12, 12, 12, 15, 18];
       const starColor = starColors[level];
-      const starY = py + th - (tower.hp < tower.maxHp ? 7 : 3);
+      const starSize = starSizes[level];
+      const starY = py + th - (tower.hp < tower.maxHp ? 8 : 3);
       const starCount = level <= 3 ? level : 1;
-      const starW = starCount * 6;
-      const startX = px + tw / 2 - starW / 2 + 3;
+      const gap = starSize + 1;
+      const starW = starCount * gap;
+      const startX = px + tw / 2 - starW / 2 + gap / 2;
       ctx.fillStyle = starColor;
-      ctx.font = '8px monospace';
-      ctx.textAlign = 'left';
+      ctx.font = starSize + 'px monospace';
+      ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
       for (let s = 0; s < starCount; s++) {
-        ctx.fillText('\u2605', startX + s * 6, starY);
+        ctx.fillText('\u2605', startX + s * gap, starY);
       }
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
