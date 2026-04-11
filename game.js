@@ -1240,9 +1240,13 @@ function updateTowerButtonLabels() {
     const i = parseInt(btn.dataset.tower);
     const t = CONFIG.towers[i];
     let label = (i + 1) + ': ' + t.name + ' (' + t.cost + 'g)';
-    const sw = t.sizeW || 2, sh = t.sizeH || 2;
-    if (state.selectedTower === i && (sw !== sh || t.attackDir === 'fixed')) {
-      label += ' ' + ROT_NAMES[state.placeRotation];
+    if (t.attackDir === 'fixed') {
+      label += ' ' + ROT_NAMES[state.selectedTower === i ? state.placeRotation : 0];
+    } else {
+      const sw = t.sizeW || 2, sh = t.sizeH || 2;
+      if (state.selectedTower === i && sw !== sh) {
+        label += ' ' + ROT_NAMES[state.placeRotation];
+      }
     }
     btn.textContent = label;
   });
