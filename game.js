@@ -2021,46 +2021,54 @@ function createTowerFields(t) {
   }
   const adVal = t.attackDir || 'any';
   div.innerHTML =
-    '<div class="cfg-row">' +
-      '<label>Name <input type="text" class="tw-name" value="' + esc(t.name) + '"></label>' +
-      '<label>Letter <input type="text" class="tw-letter" maxlength="1" value="' + esc(t.letter) + '"></label>' +
-    '</div>' +
-    '<div class="cfg-row">' +
-      '<label>Color <input type="color" class="tw-color" value="' + t.color + '"></label>' +
-      '<label>BG <input type="color" class="tw-bg" value="' + t.bg + '"></label>' +
-      '<label>W <input type="number" class="tw-sizeW" min="1" max="4" value="' + (t.sizeW || 2) + '"></label>' +
-      '<label>H <input type="number" class="tw-sizeH" min="1" max="4" value="' + (t.sizeH || 2) + '"></label>' +
-    '</div>' +
-    '<div class="cfg-row">' +
-      '<label>Range <input type="number" class="tw-range" min="0" value="' + t.range + '"></label>' +
-      '<label>Damage <input type="number" class="tw-damage" min="0" value="' + t.damage + '"></label>' +
-      '<label>Fire Rate <input type="number" class="tw-fireRate" min="1" value="' + t.fireRate + '"></label>' +
-    '</div>' +
-    '<div class="cfg-row">' +
-      '<label>Cost <input type="number" class="tw-cost" min="0" value="' + t.cost + '"></label>' +
-      '<label>HP <input type="number" class="tw-hp" min="1" value="' + t.hp + '"></label>' +
-      '<label>Dmg Type <select class="tw-damageType">' + dtOpts + '</select></label>' +
-      '<label>Attack <select class="tw-attackDir">' +
-        '<option value="any"' + (adVal === 'any' ? ' selected' : '') + '>Any</option>' +
-        '<option value="fixed"' + (adVal === 'fixed' ? ' selected' : '') + '>Fixed</option>' +
-      '</select></label>' +
-    '</div>' +
-    '<div class="cfg-row">' +
-      '<label><input type="checkbox" class="tw-pierce"' + (t.pierce ? ' checked' : '') + '> Pierce</label>' +
-      '<label><input type="checkbox" class="tw-hasDot"' + (t.dot ? ' checked' : '') + '> DOT</label>' +
-    '</div>' +
-    '<div class="cfg-row cfg-dot-fields"' + (t.dot ? '' : ' style="display:none"') + '>' +
-      '<label>DOT DPS <input type="number" class="tw-dotDps" min="0" step="0.1" value="' + (t.dot ? t.dot.dps : 1) + '"></label>' +
-      '<label>DOT Duration <input type="number" class="tw-dotDur" min="1" value="' + (t.dot ? t.dot.duration : 90) + '"></label>' +
-    '</div>' +
-    '<div class="cfg-row">' +
-      '<label>Speed Factor <input type="number" class="tw-speedFactor" min="0" step="0.1" value="' + (t.speedFactor || 1) + '"></label>' +
-      '<label>Speed Dur <input type="number" class="tw-speedDuration" min="1" value="' + (t.speedDuration || 60) + '"></label>' +
-    '</div>' +
-    '<div class="cfg-row">' +
-      '<label>Splash Radius <input type="number" class="tw-splashRadius" min="0" step="0.5" value="' + (t.splashRadius || 0) + '"></label>' +
-      '<label>Projectile Spd <input type="number" class="tw-projectileSpeed" min="0" step="0.01" value="' + (t.projectileSpeed || 0) + '"></label>' +
-    '</div>';
+    '<fieldset><legend>Identity</legend>' +
+      '<div class="cfg-row">' +
+        '<label>Name <input type="text" class="tw-name" value="' + esc(t.name) + '"></label>' +
+        '<label>Letter <input type="text" class="tw-letter" maxlength="1" value="' + esc(t.letter) + '"></label>' +
+        '<label>Color <input type="color" class="tw-color" value="' + t.color + '"></label>' +
+        '<label>BG <input type="color" class="tw-bg" value="' + t.bg + '"></label>' +
+      '</div>' +
+    '</fieldset>' +
+    '<fieldset><legend>Placement</legend>' +
+      '<div class="cfg-row">' +
+        '<label>W <input type="number" class="tw-sizeW" min="1" max="4" value="' + (t.sizeW || 2) + '"></label>' +
+        '<label>H <input type="number" class="tw-sizeH" min="1" max="4" value="' + (t.sizeH || 2) + '"></label>' +
+        '<label>Cost <input type="number" class="tw-cost" min="0" value="' + t.cost + '"></label>' +
+        '<label>HP <input type="number" class="tw-hp" min="1" value="' + t.hp + '"></label>' +
+      '</div>' +
+    '</fieldset>' +
+    '<fieldset><legend>Combat</legend>' +
+      '<div class="cfg-row">' +
+        '<label>Range <input type="number" class="tw-range" min="0" value="' + t.range + '"></label>' +
+        '<label>Damage <input type="number" class="tw-damage" min="0" value="' + t.damage + '"></label>' +
+        '<label>Fire Rate <input type="number" class="tw-fireRate" min="1" value="' + t.fireRate + '"></label>' +
+      '</div>' +
+      '<div class="cfg-row">' +
+        '<label>Dmg Type <select class="tw-damageType">' + dtOpts + '</select></label>' +
+        '<label>Attack <select class="tw-attackDir">' +
+          '<option value="any"' + (adVal === 'any' ? ' selected' : '') + '>Any</option>' +
+          '<option value="fixed"' + (adVal === 'fixed' ? ' selected' : '') + '>Fixed</option>' +
+        '</select></label>' +
+        '<label><input type="checkbox" class="tw-pierce"' + (t.pierce ? ' checked' : '') + '> Pierce</label>' +
+      '</div>' +
+      '<div class="cfg-row">' +
+        '<label>Splash Radius <input type="number" class="tw-splashRadius" min="0" step="0.5" value="' + (t.splashRadius || 0) + '"></label>' +
+        '<label>Projectile Spd <input type="number" class="tw-projectileSpeed" min="0" step="0.01" value="' + (t.projectileSpeed || 0) + '"></label>' +
+      '</div>' +
+    '</fieldset>' +
+    '<fieldset><legend>Effects</legend>' +
+      '<div class="cfg-row">' +
+        '<label><input type="checkbox" class="tw-hasDot"' + (t.dot ? ' checked' : '') + '> DOT</label>' +
+      '</div>' +
+      '<div class="cfg-row cfg-dot-fields"' + (t.dot ? '' : ' style="display:none"') + '>' +
+        '<label>DPS <input type="number" class="tw-dotDps" min="0" step="0.1" value="' + (t.dot ? t.dot.dps : 1) + '"></label>' +
+        '<label>Duration <input type="number" class="tw-dotDur" min="1" value="' + (t.dot ? t.dot.duration : 90) + '"></label>' +
+      '</div>' +
+      '<div class="cfg-row">' +
+        '<label>Slow Factor <input type="number" class="tw-speedFactor" min="0" step="0.1" value="' + (t.speedFactor || 1) + '"></label>' +
+        '<label>Slow Dur <input type="number" class="tw-speedDuration" min="1" value="' + (t.speedDuration || 60) + '"></label>' +
+      '</div>' +
+    '</fieldset>';
   div.querySelector('.tw-hasDot').addEventListener('change', function() {
     div.querySelector('.cfg-dot-fields').style.display = this.checked ? '' : 'none';
   });
@@ -2078,17 +2086,23 @@ function createMonsterFields(m) {
     modInputs += '<label>' + label + ' x<input type="number" class="mo-mod-' + dt + '" min="0" step="0.1" value="' + val + '"></label>';
   }
   div.innerHTML =
-    '<div class="cfg-row">' +
-      '<label>Name <input type="text" class="mo-name" value="' + esc(m.name) + '"></label>' +
-      '<label>Letter <input type="text" class="mo-letter" maxlength="1" value="' + esc(m.letter) + '"></label>' +
-      '<label>Color <input type="color" class="mo-color" value="' + m.color + '"></label>' +
-    '</div>' +
-    '<div class="cfg-row">' +
-      '<label>HP <input type="number" class="mo-hp" min="1" value="' + m.hp + '"></label>' +
-      '<label>Speed <input type="number" class="mo-speed" min="0.01" step="0.01" value="' + m.speed + '"></label>' +
-      '<label>Reward <input type="number" class="mo-reward" min="0" value="' + m.reward + '"></label>' +
-    '</div>' +
-    '<div class="cfg-row">' + modInputs + '</div>';
+    '<fieldset><legend>Identity</legend>' +
+      '<div class="cfg-row">' +
+        '<label>Name <input type="text" class="mo-name" value="' + esc(m.name) + '"></label>' +
+        '<label>Letter <input type="text" class="mo-letter" maxlength="1" value="' + esc(m.letter) + '"></label>' +
+        '<label>Color <input type="color" class="mo-color" value="' + m.color + '"></label>' +
+      '</div>' +
+    '</fieldset>' +
+    '<fieldset><legend>Stats</legend>' +
+      '<div class="cfg-row">' +
+        '<label>HP <input type="number" class="mo-hp" min="1" value="' + m.hp + '"></label>' +
+        '<label>Speed <input type="number" class="mo-speed" min="0.01" step="0.01" value="' + m.speed + '"></label>' +
+        '<label>Reward <input type="number" class="mo-reward" min="0" value="' + m.reward + '"></label>' +
+      '</div>' +
+    '</fieldset>' +
+    '<fieldset><legend>Damage Modifiers</legend>' +
+      '<div class="cfg-row">' + modInputs + '</div>' +
+    '</fieldset>';
   return div;
 }
 
