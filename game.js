@@ -1731,10 +1731,15 @@ function gameLoop(timestamp) {
 }
 
 // === SETTINGS ===
+function esc(s) { return s.replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+// Track which detail view is open
+let settingsDetail = { type: null, index: -1 };
+
 function openSettings() {
   document.getElementById('settings').style.display = 'flex';
   canvas.style.display = 'none';
-  populateSettings();
+  showSettingsList();
 }
 
 function closeSettings() {
@@ -1748,7 +1753,7 @@ function closeSettings() {
 function resetSettings() {
   CONFIG = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
   localStorage.removeItem('td-config');
-  populateSettings();
+  showSettingsList();
 }
 
 function exportData() {
@@ -1782,7 +1787,7 @@ function importData() {
           savedMaps = data.maps;
           saveMapsToStorage();
         }
-        populateSettings();
+        showSettingsList();
         showMessage('Imported!');
       } catch(e) {
         showMessage('Invalid file');
@@ -1793,19 +1798,28 @@ function importData() {
   input.click();
 }
 
-function populateSettings() {
+// === SETTINGS LIST VIEW ===
+
+function showSettingsList() {
+  settingsDetail = { type: null, index: -1 };
+  document.getElementById('settings-list').style.display = '';
+  document.getElementById('settings-detail').style.display = 'none';
+  populateSettingsList();
+}
+
+function populateSettingsList() {
   // Towers
   const towersDiv = document.getElementById('settings-towers');
   towersDiv.innerHTML = '';
   CONFIG.towers.forEach((t, i) => {
-    towersDiv.appendChild(createTowerFields(t, i));
+    towersDiv.appendChild(createListItem(t.color, t.letter, t.name, () => openDetail('tower', i)));
   });
 
   // Monsters
   const monstersDiv = document.getElementById('settings-monsters');
   monstersDiv.innerHTML = '';
   CONFIG.monsters.forEach((m, i) => {
-    monstersDiv.appendChild(createMonsterFields(m, i));
+    monstersDiv.appendChild(createListItem(m.color, m.letter, m.name, () => openDetail('monster', i)));
   });
 
   // Waves
@@ -1817,18 +1831,93 @@ function populateSettings() {
   document.getElementById('cfg-waveBonusGold').value = CONFIG.game.waveBonusGold;
 }
 
-function createTowerFields(t, i) {
+function createListItem(color, letter, name, onClick) {
+  const div = document.createElement('div');
+  div.className = 'cfg-list-item';
+  div.innerHTML =
+    '<div class="cfg-swatch" style="background:' + color + '">' + esc(letter) + '</div>' +
+    '<span class="cfg-list-name">' + esc(name) + '</span>' +
+    '<span class="cfg-list-arrow">&#9654;</span>';
+  div.addEventListener('click', onClick);
+  return div;
+}
+
+function populateWaveFields() {
+  const wavesDiv = document.getElementById('settings-wave-monsters');
+  wavesDiv.innerHTML = '';
+  CONFIG.monsters.forEach((m, i) => {
+    const div = document.createElement('div');
+    div.className = 'cfg-row';
+    div.innerHTML =
+      '<span style="color:' + m.color + '">' + esc(m.name) + '</span>' +
+      '<label>Count <input type="number" class="wv-base" min="0" value="' + (CONFIG.waves.baseCounts[i] || 0) + '"></label>' +
+      '<label>Unlock wave <input type="number" class="wv-unlock" min="1" value="' + (CONFIG.waves.unlockWave[i] || 1) + '"></label>';
+    wavesDiv.appendChild(div);
+  });
+  document.getElementById('cfg-scaleEvery').value = CONFIG.waves.scaleEvery;
+  document.getElementById('cfg-hpScale').value = CONFIG.waves.hpScale ?? 20;
+  document.getElementById('cfg-intervalStart').value = CONFIG.waves.intervalStart;
+  document.getElementById('cfg-intervalDecay').value = CONFIG.waves.intervalDecay;
+  document.getElementById('cfg-intervalMin').value = CONFIG.waves.intervalMin;
+}
+
+// === SETTINGS DETAIL VIEW ===
+
+function openDetail(type, index) {
+  // Save wave/game fields before switching
+  readSettings();
+  settingsDetail = { type, index };
+  document.getElementById('settings-list').style.display = 'none';
+  document.getElementById('settings-detail').style.display = 'flex';
+
+  const title = document.getElementById('settings-detail-title');
+  const body = document.getElementById('settings-detail-body');
+  body.innerHTML = '';
+
+  if (type === 'tower') {
+    title.textContent = 'Tower: ' + CONFIG.towers[index].name;
+    body.appendChild(createTowerFields(CONFIG.towers[index]));
+  } else {
+    title.textContent = 'Monster: ' + CONFIG.monsters[index].name;
+    body.appendChild(createMonsterFields(CONFIG.monsters[index]));
+  }
+}
+
+function closeDetail() {
+  const { type, index } = settingsDetail;
+  const body = document.getElementById('settings-detail-body');
+  const div = body.querySelector('.cfg-item');
+  if (div && type === 'tower') {
+    CONFIG.towers[index] = readTowerFromForm(div);
+  } else if (div && type === 'monster') {
+    CONFIG.monsters[index] = readMonsterFromForm(div);
+  }
+  showSettingsList();
+}
+
+function deleteDetailItem() {
+  const { type, index } = settingsDetail;
+  if (type === 'tower') {
+    if (CONFIG.towers.length <= 1) return;
+    CONFIG.towers.splice(index, 1);
+  } else if (type === 'monster') {
+    if (CONFIG.monsters.length <= 1) return;
+    CONFIG.monsters.splice(index, 1);
+    CONFIG.waves.baseCounts.splice(index, 1);
+    CONFIG.waves.unlockWave.splice(index, 1);
+  }
+  showSettingsList();
+}
+
+function createTowerFields(t) {
   const div = document.createElement('div');
   div.className = 'cfg-item';
-  // Build damageType select options
   const dtVal = t.damageType || 'physical';
   let dtOpts = '';
   for (const dt of DAMAGE_TYPES) {
     dtOpts += '<option value="' + dt + '"' + (dt === dtVal ? ' selected' : '') + '>' + dt.charAt(0).toUpperCase() + dt.slice(1) + '</option>';
   }
   div.innerHTML =
-    '<div class="cfg-item-header"><span>Tower ' + (i + 1) + '</span>' +
-    '<button class="cfg-remove" onclick="removeTowerType(' + i + ')">X</button></div>' +
     '<div class="cfg-row">' +
       '<label>Name <input type="text" class="tw-name" value="' + esc(t.name) + '"></label>' +
       '<label>Letter <input type="text" class="tw-letter" maxlength="1" value="' + esc(t.letter) + '"></label>' +
@@ -1863,17 +1952,15 @@ function createTowerFields(t, i) {
       '<label>Splash Radius <input type="number" class="tw-splashRadius" min="0" step="0.5" value="' + (t.splashRadius || 0) + '"></label>' +
       '<label>Projectile Spd <input type="number" class="tw-projectileSpeed" min="0" step="0.01" value="' + (t.projectileSpeed || 0) + '"></label>' +
     '</div>';
-  // Toggle DOT fields visibility
   div.querySelector('.tw-hasDot').addEventListener('change', function() {
     div.querySelector('.cfg-dot-fields').style.display = this.checked ? '' : 'none';
   });
   return div;
 }
 
-function createMonsterFields(m, i) {
+function createMonsterFields(m) {
   const div = document.createElement('div');
   div.className = 'cfg-item';
-  // Build damage modifier inputs
   let modInputs = '';
   const mods = m.damageModifiers || {};
   for (const dt of DAMAGE_TYPES) {
@@ -1882,8 +1969,6 @@ function createMonsterFields(m, i) {
     modInputs += '<label>' + label + ' x<input type="number" class="mo-mod-' + dt + '" min="0" step="0.1" value="' + val + '"></label>';
   }
   div.innerHTML =
-    '<div class="cfg-item-header"><span>Monster ' + (i + 1) + '</span>' +
-    '<button class="cfg-remove" onclick="removeMonsterType(' + i + ')">X</button></div>' +
     '<div class="cfg-row">' +
       '<label>Name <input type="text" class="mo-name" value="' + esc(m.name) + '"></label>' +
       '<label>Letter <input type="text" class="mo-letter" maxlength="1" value="' + esc(m.letter) + '"></label>' +
@@ -1898,86 +1983,65 @@ function createMonsterFields(m, i) {
   return div;
 }
 
-function populateWaveFields() {
-  const wavesDiv = document.getElementById('settings-wave-monsters');
-  wavesDiv.innerHTML = '';
-  CONFIG.monsters.forEach((m, i) => {
-    const div = document.createElement('div');
-    div.className = 'cfg-row';
-    div.innerHTML =
-      '<span style="color:' + m.color + '">' + m.name + '</span>' +
-      '<label>Count <input type="number" class="wv-base" min="0" value="' + (CONFIG.waves.baseCounts[i] || 0) + '"></label>' +
-      '<label>Unlock wave <input type="number" class="wv-unlock" min="1" value="' + (CONFIG.waves.unlockWave[i] || 1) + '"></label>';
-    wavesDiv.appendChild(div);
-  });
-  document.getElementById('cfg-scaleEvery').value = CONFIG.waves.scaleEvery;
-  document.getElementById('cfg-hpScale').value = CONFIG.waves.hpScale ?? 20;
-  document.getElementById('cfg-intervalStart').value = CONFIG.waves.intervalStart;
-  document.getElementById('cfg-intervalDecay').value = CONFIG.waves.intervalDecay;
-  document.getElementById('cfg-intervalMin').value = CONFIG.waves.intervalMin;
+// === READ FORM DATA ===
+
+function readTowerFromForm(div) {
+  const t = {
+    name: div.querySelector('.tw-name').value,
+    letter: div.querySelector('.tw-letter').value || '?',
+    color: div.querySelector('.tw-color').value,
+    bg: div.querySelector('.tw-bg').value,
+    range: +div.querySelector('.tw-range').value,
+    damage: +div.querySelector('.tw-damage').value,
+    fireRate: +div.querySelector('.tw-fireRate').value || 1,
+    cost: +div.querySelector('.tw-cost').value,
+    hp: +div.querySelector('.tw-hp').value || 1,
+  };
+  if (div.querySelector('.tw-pierce').checked) t.pierce = true;
+  if (div.querySelector('.tw-hasDot').checked) {
+    t.dot = {
+      dps: +div.querySelector('.tw-dotDps').value || 1,
+      duration: +div.querySelector('.tw-dotDur').value || 90,
+    };
+  }
+  t.damageType = div.querySelector('.tw-damageType').value || 'physical';
+  const sf = +div.querySelector('.tw-speedFactor').value;
+  if (sf && sf !== 1) t.speedFactor = sf;
+  const sd = +div.querySelector('.tw-speedDuration').value;
+  if (sd && sd !== 60) t.speedDuration = sd;
+  const sr = +div.querySelector('.tw-splashRadius').value;
+  if (sr > 0) t.splashRadius = sr;
+  const ps = +div.querySelector('.tw-projectileSpeed').value;
+  if (ps > 0) t.projectileSpeed = ps;
+  return t;
+}
+
+function readMonsterFromForm(div) {
+  const m = {
+    name: div.querySelector('.mo-name').value,
+    letter: div.querySelector('.mo-letter').value || '?',
+    color: div.querySelector('.mo-color').value,
+    hp: +div.querySelector('.mo-hp').value || 1,
+    speed: +div.querySelector('.mo-speed').value || 0.05,
+    reward: +div.querySelector('.mo-reward').value || 1,
+  };
+  const mods = {};
+  let hasNonDefault = false;
+  for (const dt of DAMAGE_TYPES) {
+    const el = div.querySelector('.mo-mod-' + dt);
+    if (el) {
+      const val = +el.value;
+      if (!isNaN(val) && val !== 1) {
+        mods[dt] = val;
+        hasNonDefault = true;
+      }
+    }
+  }
+  if (hasNonDefault) m.damageModifiers = mods;
+  return m;
 }
 
 function readSettings() {
-  // Read towers
-  const towerItems = document.querySelectorAll('#settings-towers .cfg-item');
-  CONFIG.towers = Array.from(towerItems).map(div => {
-    const t = {
-      name: div.querySelector('.tw-name').value,
-      letter: div.querySelector('.tw-letter').value || '?',
-      color: div.querySelector('.tw-color').value,
-      bg: div.querySelector('.tw-bg').value,
-      range: +div.querySelector('.tw-range').value,
-      damage: +div.querySelector('.tw-damage').value,
-      fireRate: +div.querySelector('.tw-fireRate').value || 1,
-      cost: +div.querySelector('.tw-cost').value,
-      hp: +div.querySelector('.tw-hp').value || 1,
-    };
-    if (div.querySelector('.tw-pierce').checked) t.pierce = true;
-    if (div.querySelector('.tw-hasDot').checked) {
-      t.dot = {
-        dps: +div.querySelector('.tw-dotDps').value || 1,
-        duration: +div.querySelector('.tw-dotDur').value || 90,
-      };
-    }
-    t.damageType = div.querySelector('.tw-damageType').value || 'physical';
-    const sf = +div.querySelector('.tw-speedFactor').value;
-    if (sf && sf !== 1) t.speedFactor = sf;
-    const sd = +div.querySelector('.tw-speedDuration').value;
-    if (sd && sd !== 60) t.speedDuration = sd;
-    const sr = +div.querySelector('.tw-splashRadius').value;
-    if (sr > 0) t.splashRadius = sr;
-    const ps = +div.querySelector('.tw-projectileSpeed').value;
-    if (ps > 0) t.projectileSpeed = ps;
-    return t;
-  });
-
-  // Read monsters
-  const monsterItems = document.querySelectorAll('#settings-monsters .cfg-item');
-  CONFIG.monsters = Array.from(monsterItems).map(div => {
-    const m = {
-      name: div.querySelector('.mo-name').value,
-      letter: div.querySelector('.mo-letter').value || '?',
-      color: div.querySelector('.mo-color').value,
-      hp: +div.querySelector('.mo-hp').value || 1,
-      speed: +div.querySelector('.mo-speed').value || 0.05,
-      reward: +div.querySelector('.mo-reward').value || 1,
-    };
-    const mods = {};
-    let hasNonDefault = false;
-    for (const dt of DAMAGE_TYPES) {
-      const el = div.querySelector('.mo-mod-' + dt);
-      if (el) {
-        const val = +el.value;
-        if (!isNaN(val) && val !== 1) {
-          mods[dt] = val;
-          hasNonDefault = true;
-        }
-      }
-    }
-    if (hasNonDefault) m.damageModifiers = mods;
-    return m;
-  });
-
   // Read waves
   const baseDivs = document.querySelectorAll('#settings-wave-monsters .cfg-row');
   CONFIG.waves.baseCounts = Array.from(baseDivs).map(d => +d.querySelector('.wv-base').value || 0);
@@ -1997,14 +2061,7 @@ function readSettings() {
 function addTowerType() {
   readSettings();
   CONFIG.towers.push({ name: 'New', letter: 'X', color: '#ffffff', bg: '#444444', range: 2, damage: 1, fireRate: 30, cost: 10, hp: 5, damageType: 'physical' });
-  populateSettings();
-}
-
-function removeTowerType(i) {
-  readSettings();
-  if (CONFIG.towers.length <= 1) return;
-  CONFIG.towers.splice(i, 1);
-  populateSettings();
+  openDetail('tower', CONFIG.towers.length - 1);
 }
 
 function addMonsterType() {
@@ -2012,19 +2069,8 @@ function addMonsterType() {
   CONFIG.monsters.push({ name: 'New', letter: '?', color: '#ffffff', hp: 10, speed: 0.08, reward: 5 });
   CONFIG.waves.baseCounts.push(1);
   CONFIG.waves.unlockWave.push(CONFIG.monsters.length);
-  populateSettings();
+  openDetail('monster', CONFIG.monsters.length - 1);
 }
-
-function removeMonsterType(i) {
-  readSettings();
-  if (CONFIG.monsters.length <= 1) return;
-  CONFIG.monsters.splice(i, 1);
-  CONFIG.waves.baseCounts.splice(i, 1);
-  CONFIG.waves.unlockWave.splice(i, 1);
-  populateSettings();
-}
-
-function esc(s) { return s.replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
 // === INIT ===
 function startGame(mapIdx) {

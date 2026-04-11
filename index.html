@@ -164,6 +164,69 @@ canvas {
 .btn-save { background: #1b5e20 !important; border-color: #4caf50 !important; color: #fff !important; }
 .btn-reset { background: #4a1a1a !important; border-color: #f44336 !important; color: #f44336 !important; }
 
+/* Settings list items */
+#settings .cfg-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 14px;
+  color: #ccc;
+}
+#settings .cfg-list-item:active { background: #222; }
+#settings .cfg-list-item .cfg-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  border: 1px solid #555;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 14px;
+}
+#settings .cfg-list-item .cfg-list-name { flex: 1; }
+#settings .cfg-list-item .cfg-list-arrow { color: #555; }
+
+/* Settings detail view */
+#settings-detail {
+  display: none;
+  flex-direction: column;
+}
+#settings-detail .cfg-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+#settings-detail .cfg-detail-header button {
+  padding: 6px 12px;
+  font-size: 14px;
+  font-family: monospace;
+  background: #222;
+  color: #ccc;
+  border: 1px solid #444;
+  border-radius: 4px;
+  cursor: pointer;
+}
+#settings-detail .cfg-detail-header span {
+  color: #81d4fa;
+  font-size: 16px;
+  font-weight: bold;
+}
+#settings-detail .cfg-detail-body .cfg-item {
+  border: none;
+  padding: 0;
+  background: none;
+}
+
 /* Editor UI */
 #editor-ui {
   position: sticky;
@@ -238,44 +301,55 @@ canvas {
 </div>
 
 <div id="settings">
-  <h2>Towers</h2>
-  <div id="settings-towers"></div>
-  <button class="cfg-add" onclick="addTowerType()">+ Add Tower</button>
+  <div id="settings-list">
+    <h2>Towers</h2>
+    <div id="settings-towers"></div>
+    <button class="cfg-add" onclick="addTowerType()">+ Add Tower</button>
 
-  <h2>Monsters</h2>
-  <div id="settings-monsters"></div>
-  <button class="cfg-add" onclick="addMonsterType()">+ Add Monster</button>
+    <h2>Monsters</h2>
+    <div id="settings-monsters"></div>
+    <button class="cfg-add" onclick="addMonsterType()">+ Add Monster</button>
 
-  <h2>Waves</h2>
-  <div id="settings-wave-monsters"></div>
-  <div class="cfg-item">
-    <div class="cfg-row">
-      <label>Double every <input type="number" id="cfg-scaleEvery" min="1" value="2"> waves</label>
-      <label>HP +<input type="number" id="cfg-hpScale" min="0" value="20">% / wave</label>
+    <h2>Waves</h2>
+    <div id="settings-wave-monsters"></div>
+    <div class="cfg-item">
+      <div class="cfg-row">
+        <label>Double every <input type="number" id="cfg-scaleEvery" min="1" value="2"> waves</label>
+        <label>HP +<input type="number" id="cfg-hpScale" min="0" value="20">% / wave</label>
+      </div>
+      <div class="cfg-row">
+        <label>Interval start <input type="number" id="cfg-intervalStart" min="1"></label>
+        <label>Decay <input type="number" id="cfg-intervalDecay" min="0"></label>
+        <label>Min <input type="number" id="cfg-intervalMin" min="1"></label>
+      </div>
     </div>
-    <div class="cfg-row">
-      <label>Interval start <input type="number" id="cfg-intervalStart" min="1"></label>
-      <label>Decay <input type="number" id="cfg-intervalDecay" min="0"></label>
-      <label>Min <input type="number" id="cfg-intervalMin" min="1"></label>
+
+    <h2>Game</h2>
+    <div class="cfg-item">
+      <div class="cfg-row">
+        <label>Start Gold <input type="number" id="cfg-startGold" min="0"></label>
+        <label>Start Lives <input type="number" id="cfg-startLives" min="1"></label>
+        <label>Wave Bonus <input type="number" id="cfg-waveBonusGold" min="0"></label>
+      </div>
+    </div>
+
+    <div class="cfg-actions">
+      <button class="btn-save" onclick="closeSettings()">Save & Close</button>
+      <button class="btn-reset" onclick="resetSettings()">Reset Defaults</button>
+    </div>
+    <div class="cfg-actions">
+      <button onclick="exportData()" style="background:#0d47a1;border-color:#42a5f5;color:#fff">Export</button>
+      <button onclick="importData()" style="background:#0d47a1;border-color:#42a5f5;color:#fff">Import</button>
     </div>
   </div>
 
-  <h2>Game</h2>
-  <div class="cfg-item">
-    <div class="cfg-row">
-      <label>Start Gold <input type="number" id="cfg-startGold" min="0"></label>
-      <label>Start Lives <input type="number" id="cfg-startLives" min="1"></label>
-      <label>Wave Bonus <input type="number" id="cfg-waveBonusGold" min="0"></label>
+  <div id="settings-detail">
+    <div class="cfg-detail-header">
+      <button onclick="closeDetail()">Back</button>
+      <span id="settings-detail-title"></span>
+      <button class="cfg-remove" onclick="deleteDetailItem()" style="margin-left:auto">Delete</button>
     </div>
-  </div>
-
-  <div class="cfg-actions">
-    <button class="btn-save" onclick="closeSettings()">Save & Close</button>
-    <button class="btn-reset" onclick="resetSettings()">Reset Defaults</button>
-  </div>
-  <div class="cfg-actions">
-    <button onclick="exportData()" style="background:#0d47a1;border-color:#42a5f5;color:#fff">Export</button>
-    <button onclick="importData()" style="background:#0d47a1;border-color:#42a5f5;color:#fff">Import</button>
+    <div class="cfg-detail-body" id="settings-detail-body"></div>
   </div>
 </div>
 
