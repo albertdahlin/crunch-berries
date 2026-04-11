@@ -39,6 +39,7 @@ const DEFAULT_CONFIG = {
     startGold: 50,
     startLives: 20,
     waveBonusGold: 10,
+    sellRefundPercent: 50,
   },
 };
 
@@ -229,6 +230,7 @@ function startGameWithGround() {
   state.placeRotation = 0;
   state.message = '';
   state.messageTimer = 0;
+  state.selectedPlacedTower = null;
   recomputePath();
   rebuildTowerButtons();
   state.phase = 'PLACE';
@@ -321,6 +323,7 @@ const state = {
   spawnTimer: 0,
   message: '',
   messageTimer: 0,
+  selectedPlacedTower: null,
 };
 
 let pathDist = null;   // Int32Array
@@ -496,9 +499,12 @@ function placeTower() {
     hp: type.hp,
     maxHp: type.hp,
     lastFire: 0,
+    placedAtWave: state.wave,
   });
 
   state.gold -= type.cost;
+  state.selectedPlacedTower = null;
+  updateSellButton();
   recomputePath();
 
   if (pathBlocked) {
@@ -515,6 +521,47 @@ function removeTower(tower) {
     for (let dx = 0; dx < size.w; dx++)
       grid[(tower.y + dy) * COLS + (tower.x + dx)] = 0;
   recomputePath();
+}
+
+function getTowerAt(tx, ty) {
+  for (const tower of state.towers) {
+    const size = getTowerSize(tower.typeIdx, tower.rotation);
+    if (tx >= tower.x && tx < tower.x + size.w &&
+        ty >= tower.y && ty < tower.y + size.h) return tower;
+  }
+  return null;
+}
+
+function getSellRefund(tower) {
+  const type = CONFIG.towers[tower.typeIdx];
+  if (!type) return 0;
+  if (state.phase === 'PLACE' && tower.placedAtWave === state.wave) return type.cost;
+  return Math.floor(type.cost * CONFIG.game.sellRefundPercent / 100);
+}
+
+function sellTower() {
+  if (!state.selectedPlacedTower) return;
+  if (state.phase === 'GAMEOVER') return;
+  const tower = state.selectedPlacedTower;
+  const refund = getSellRefund(tower);
+  state.gold += refund;
+  state.selectedPlacedTower = null;
+  removeTower(tower);
+  updateSellButton();
+  showMessage('Sold! +' + refund + 'g');
+}
+
+function updateSellButton() {
+  const btn = document.getElementById('btn-sell');
+  if (!btn) return;
+  if (state.selectedPlacedTower) {
+    const refund = getSellRefund(state.selectedPlacedTower);
+    const type = CONFIG.towers[state.selectedPlacedTower.typeIdx];
+    btn.textContent = 'Sell ' + (type ? type.name : '?') + ' (+' + refund + 'g)';
+    btn.style.display = '';
+  } else {
+    btn.style.display = 'none';
+  }
 }
 
 function distToTower(mx, my, tower) {
@@ -820,6 +867,10 @@ function updateMonsters() {
           // Adjacent, deal damage
           m.attacking.hp -= 2 / FPS;  // 2 damage per second
           if (m.attacking.hp <= 0) {
+            if (state.selectedPlacedTower === m.attacking) {
+              state.selectedPlacedTower = null;
+              updateSellButton();
+            }
             removeTower(m.attacking);
             m.attacking = null;
           }
@@ -881,6 +932,8 @@ function updateMonsters() {
 // === WAVE LOGIC ===
 function startWave() {
   if (state.phase !== 'PLACE') return;
+  state.selectedPlacedTower = null;
+  updateSellButton();
   state.wave++;
   const w = getWaveConfig(state.wave);
   // Spawn all monsters at once
@@ -959,6 +1012,15 @@ function setupInput() {
       return;
     }
 
+    const clickedTower = getTowerAt(t.x, t.y);
+    if (clickedTower) {
+      state.selectedPlacedTower = (state.selectedPlacedTower === clickedTower) ? null : clickedTower;
+      updateSellButton();
+      return;
+    }
+    state.selectedPlacedTower = null;
+    updateSellButton();
+
     state.cursor.x = Math.max(0, Math.min(COLS - 2, t.x));
     state.cursor.y = Math.max(0, Math.min(ROWS - 2, t.y));
     placeTower();
@@ -988,6 +1050,8 @@ function setupInput() {
       case 'ArrowRight': state.cursor.x = Math.min(COLS - pSize.w, state.cursor.x + 1); state.cursor.visible = true; e.preventDefault(); break;
       case ' ': case 'Enter': placeTower(); e.preventDefault(); break;
       case 'w': case 'W': startWave(); break;
+      case 'x': case 'X': case 'Delete': sellTower(); break;
+      case 'Escape': state.selectedPlacedTower = null; updateSellButton(); break;
       default: {
         const n = parseInt(e.key);
         if (n >= 1 && n <= CONFIG.towers.length) selectTowerType(n - 1);
@@ -1035,6 +1099,15 @@ function setupInput() {
       return;
     }
 
+    const clickedTower = getTowerAt(t.x, t.y);
+    if (clickedTower) {
+      state.selectedPlacedTower = (state.selectedPlacedTower === clickedTower) ? null : clickedTower;
+      updateSellButton();
+      return;
+    }
+    state.selectedPlacedTower = null;
+    updateSellButton();
+
     state.cursor.x = Math.max(0, Math.min(COLS - 2, t.x));
     state.cursor.y = Math.max(0, Math.min(ROWS - 2, t.y));
     state.cursor.visible = true;
@@ -1042,6 +1115,7 @@ function setupInput() {
 
   // UI buttons
   document.getElementById('btn-wave').addEventListener('click', startWave);
+  document.getElementById('btn-sell').addEventListener('click', sellTower);
   document.getElementById('btn-place').addEventListener('click', () => {
     state.cursor.visible = true;
     placeTower();
@@ -1283,6 +1357,20 @@ function drawTowers() {
         ctx.lineTo(px + 2 + as, py + th / 2 + as);
       }
       ctx.fill();
+    }
+
+    // Selection highlight
+    if (tower === state.selectedPlacedTower) {
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(px + 1, py + 1, tw - 2, th - 2);
+      const tcx = (tower.x + size.w / 2) * TILE_SIZE;
+      const tcy = (tower.y + size.h / 2) * TILE_SIZE;
+      ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+      ctx.beginPath();
+      ctx.arc(tcx, tcy, type.range * TILE_SIZE, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 1;
     }
   }
 }
@@ -1842,6 +1930,7 @@ function populateSettingsList() {
   document.getElementById('cfg-startGold').value = CONFIG.game.startGold;
   document.getElementById('cfg-startLives').value = CONFIG.game.startLives;
   document.getElementById('cfg-waveBonusGold').value = CONFIG.game.waveBonusGold;
+  document.getElementById('cfg-sellRefundPercent').value = CONFIG.game.sellRefundPercent;
 }
 
 function createListItem(color, letter, name, onClick) {
@@ -2079,6 +2168,7 @@ function readSettings() {
   CONFIG.game.startGold = +document.getElementById('cfg-startGold').value || 50;
   CONFIG.game.startLives = +document.getElementById('cfg-startLives').value || 20;
   CONFIG.game.waveBonusGold = +document.getElementById('cfg-waveBonusGold').value || 10;
+  CONFIG.game.sellRefundPercent = +document.getElementById('cfg-sellRefundPercent').value || 50;
 }
 
 function addTowerType() {
