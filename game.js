@@ -15,10 +15,10 @@ const DAMAGE_TYPE_COLORS = { physical: '#aaa', fire: '#ff6600', ice: '#66ccff', 
 // === CONFIG (data-driven, editable via settings) ===
 const DEFAULT_CONFIG = {
   towers: [
-    { name: 'Melee',     letter: 'M', color: '#4fc3f7', bg: '#1565c0', range: 1, damage: 3, fireRate: 15, cost: 10, hp: 10, damageType: 'physical' },
-    { name: 'Range',     letter: 'R', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 5, damageType: 'physical' },
-    { name: 'DOT',       letter: 'D', color: '#81c784', bg: '#2e7d32', range: 1, damage: 0, fireRate: 30, cost: 20, hp: 8, damageType: 'fire', dot: { dps: 1, duration: 90 } },
-    { name: 'Pierce',    letter: 'P', color: '#ce93d8', bg: '#6a1b9a', range: 5, damage: 1, fireRate: 45, cost: 25, hp: 5, damageType: 'lightning', pierce: true, sizeW: 1, sizeH: 2, attackDir: 'fixed' },
+    { name: 'Melee',     letter: 'M', color: '#4fc3f7', bg: '#1565c0', range: 1, damage: 3, fireRate: 15, cost: 10, hp: 10, damageType: 'physical', upgradeCost: 10, upgradeDmg: 25, upgradeRange: 15, upgradeRate: 10 },
+    { name: 'Range',     letter: 'R', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 5, damageType: 'physical', upgradeCost: 15, upgradeDmg: 20, upgradeRange: 20, upgradeRate: 10 },
+    { name: 'DOT',       letter: 'D', color: '#81c784', bg: '#2e7d32', range: 1, damage: 0, fireRate: 30, cost: 20, hp: 8, damageType: 'fire', dot: { dps: 1, duration: 90 }, upgradeCost: 12, upgradeDmg: 30, upgradeRange: 10, upgradeRate: 10 },
+    { name: 'Pierce',    letter: 'P', color: '#ce93d8', bg: '#6a1b9a', range: 5, damage: 1, fireRate: 45, cost: 25, hp: 5, damageType: 'lightning', pierce: true, sizeW: 1, sizeH: 2, attackDir: 'fixed', upgradeCost: 15, upgradeDmg: 25, upgradeRange: 15, upgradeRate: 10 },
     { name: 'Barricade', letter: 'B', color: '#90a4ae', bg: '#455a64', range: 0, damage: 0, fireRate: 9999, cost: 3, hp: 15 },
   ],
   monsters: [
@@ -501,6 +501,16 @@ function getTowerSize(typeIdx, rotation) {
   return (rotation === 1 || rotation === 3) ? { w: sh, h: sw } : { w: sw, h: sh };
 }
 
+function towerStat(tower, stat) {
+  const type = CONFIG.towers[tower.typeIdx];
+  const lvl = tower.level || 0;
+  if (stat === 'damage') return type.damage * (1 + (type.upgradeDmg || 0) / 100 * lvl);
+  if (stat === 'range') return type.range * (1 + (type.upgradeRange || 0) / 100 * lvl);
+  if (stat === 'fireRate') return Math.max(1, Math.round(type.fireRate / (1 + (type.upgradeRate || 0) / 100 * lvl)));
+  if (stat === 'dotDps') return type.dot ? type.dot.dps * (1 + (type.upgradeDmg || 0) / 100 * lvl) : 0;
+  return type[stat];
+}
+
 function canPlaceTower(tx, ty, typeIdx, rotation) {
   if (typeIdx === undefined) typeIdx = state.selectedTower;
   if (rotation === undefined) rotation = state.placeRotation;
@@ -555,6 +565,8 @@ function placeTower() {
     maxHp: type.hp,
     lastFire: 0,
     placedAtWave: state.wave,
+    level: 0,
+    totalCost: type.cost,
   });
 
   state.gold -= type.cost;
@@ -590,8 +602,33 @@ function getTowerAt(tx, ty) {
 function getSellRefund(tower) {
   const type = CONFIG.towers[tower.typeIdx];
   if (!type) return 0;
-  if (state.phase === 'PLACE' && tower.placedAtWave === state.wave) return type.cost;
-  return Math.floor(type.cost * CONFIG.game.sellRefundPercent / 100);
+  const total = tower.totalCost || type.cost;
+  if (state.phase === 'PLACE' && tower.placedAtWave === state.wave && (tower.level || 0) === 0) return total;
+  return Math.floor(total * CONFIG.game.sellRefundPercent / 100);
+}
+
+function getUpgradeCost(tower) {
+  const type = CONFIG.towers[tower.typeIdx];
+  if (!type || (tower.level || 0) >= 5) return -1;
+  return Math.round((type.upgradeCost || 10) * ((tower.level || 0) + 1));
+}
+
+function upgradeTower() {
+  if (!state.selectedPlacedTower) return;
+  if (state.phase === 'GAMEOVER') return;
+  const tower = state.selectedPlacedTower;
+  const cost = getUpgradeCost(tower);
+  if (cost < 0) return;
+  if (state.gold < cost) { showMessage('Not enough gold!'); return; }
+  state.gold -= cost;
+  tower.level = (tower.level || 0) + 1;
+  tower.totalCost = (tower.totalCost || CONFIG.towers[tower.typeIdx].cost) + cost;
+  const type = CONFIG.towers[tower.typeIdx];
+  const newMax = Math.round(type.hp * (1 + tower.level * 0.5));
+  tower.hp += newMax - tower.maxHp;
+  tower.maxHp = newMax;
+  updateSellButton();
+  showMessage('Upgraded to level ' + tower.level + '!');
 }
 
 function sellTower() {
@@ -608,6 +645,7 @@ function sellTower() {
 
 function updateSellButton() {
   const btn = document.getElementById('btn-sell');
+  const btnUp = document.getElementById('btn-upgrade');
   if (!btn) return;
   const hasSel = !!state.selectedPlacedTower;
   document.getElementById('tower-buttons').style.display = hasSel ? 'none' : '';
@@ -619,8 +657,16 @@ function updateSellButton() {
     const type = CONFIG.towers[state.selectedPlacedTower.typeIdx];
     btn.textContent = 'Sell ' + (type ? type.name : '?') + ' (+' + refund + 'g)';
     btn.style.display = '';
+    const cost = getUpgradeCost(state.selectedPlacedTower);
+    if (cost >= 0) {
+      btnUp.textContent = 'Upgrade (' + cost + 'g)';
+      btnUp.style.display = '';
+    } else {
+      btnUp.style.display = 'none';
+    }
   } else {
     btn.style.display = 'none';
+    btnUp.style.display = 'none';
   }
 }
 
@@ -668,8 +714,11 @@ function applySplash(cx, cy, radius, towerType, excludeMonster) {
 function updateTowers() {
   for (const tower of state.towers) {
     const type = CONFIG.towers[tower.typeIdx];
-    if (type.range <= 0 || (type.damage <= 0 && !type.dot)) continue;
-    if (state.frame - tower.lastFire < type.fireRate) continue;
+    const eDmg = towerStat(tower, 'damage');
+    const eRange = towerStat(tower, 'range');
+    const eRate = towerStat(tower, 'fireRate');
+    if (eRange <= 0 || (eDmg <= 0 && !type.dot)) continue;
+    if (state.frame - tower.lastFire < eRate) continue;
 
     const tSize = getTowerSize(tower.typeIdx, tower.rotation);
     const tcx = tower.x + tSize.w / 2;
@@ -700,12 +749,12 @@ function updateTowers() {
         const rx = m.x - ox;
         const ry = m.y - oy;
         let inCorridor = false;
-        if (dir === 0 && Math.abs(rx) < corridorW && ry >= -type.range && ry <= 0) inCorridor = true;
-        if (dir === 4 && Math.abs(rx) < corridorW && ry >= 0 && ry <= type.range) inCorridor = true;
-        if (dir === 2 && Math.abs(ry) < corridorW && rx >= 0 && rx <= type.range) inCorridor = true;
-        if (dir === 6 && Math.abs(ry) < corridorW && rx >= -type.range && rx <= 0) inCorridor = true;
+        if (dir === 0 && Math.abs(rx) < corridorW && ry >= -eRange && ry <= 0) inCorridor = true;
+        if (dir === 4 && Math.abs(rx) < corridorW && ry >= 0 && ry <= eRange) inCorridor = true;
+        if (dir === 2 && Math.abs(ry) < corridorW && rx >= 0 && rx <= eRange) inCorridor = true;
+        if (dir === 6 && Math.abs(ry) < corridorW && rx >= -eRange && rx <= 0) inCorridor = true;
         if (inCorridor) {
-          applyDamage(m, type.damage, type.damageType);
+          applyDamage(m, eDmg, type.damageType);
           if (type.speedFactor && type.speedFactor !== 1) {
             applySpeedMod(m, type.speedFactor, type.speedDuration);
           }
@@ -714,8 +763,8 @@ function updateTowers() {
       }
       if (!hit) continue;
       tower.lastFire = state.frame;
-      const ex = ox + DX[dir] * type.range;
-      const ey = oy + DY[dir] * type.range;
+      const ex = ox + DX[dir] * eRange;
+      const ey = oy + DY[dir] * eRange;
       state.effects.push({ x: ox, y: oy, tx: ex, ty: ey, ttl: 4, color: type.color, wide: true });
 
     } else if (type.dot) {
@@ -730,7 +779,7 @@ function updateTowers() {
           if (dx * fdx + dy * fdy <= 0) continue;
         }
         const d = distToTower(m.x, m.y, tower);
-        if (d > type.range + 1) continue;
+        if (d > eRange + 1) continue;
         const hasDot = !!m.dot;
         if ((!hasDot && nearestHasDot) || (hasDot === nearestHasDot && d < nearDist)) {
           nearDist = d;
@@ -740,7 +789,7 @@ function updateTowers() {
       }
       if (!nearest) continue;
       tower.lastFire = state.frame;
-      nearest.dot = { dps: type.dot.dps, remaining: type.dot.duration, damageType: type.damageType || 'physical' };
+      nearest.dot = { dps: towerStat(tower, 'dotDps'), remaining: type.dot.duration, damageType: type.damageType || 'physical' };
       if (type.speedFactor && type.speedFactor !== 1) {
         applySpeedMod(nearest, type.speedFactor, type.speedDuration);
       }
@@ -756,8 +805,8 @@ function updateTowers() {
           const dx = m.x - tcx, dy = m.y - tcy;
           if (dx * fdx + dy * fdy <= 0) continue;
         }
-        const d = (type.range <= 1) ? distToTower(m.x, m.y, tower) : Math.hypot(m.x - tcx, m.y - tcy);
-        if (d < nearDist && d <= type.range + 1) {
+        const d = (eRange <= 1) ? distToTower(m.x, m.y, tower) : Math.hypot(m.x - tcx, m.y - tcy);
+        if (d < nearDist && d <= eRange + 1) {
           nearDist = d;
           nearest = m;
         }
@@ -774,13 +823,13 @@ function updateTowers() {
           tx: nearest.x, ty: nearest.y,
           vx: (dx / dist) * type.projectileSpeed,
           vy: (dy / dist) * type.projectileSpeed,
-          damage: type.damage,
+          damage: eDmg,
           towerTypeIdx: tower.typeIdx,
           color: type.color,
         });
       } else {
         const dmgType = type.damageType || 'physical';
-        applyDamage(nearest, type.damage, dmgType);
+        applyDamage(nearest, eDmg, dmgType);
         if (type.speedFactor && type.speedFactor !== 1) {
           applySpeedMod(nearest, type.speedFactor, type.speedDuration);
         }
@@ -1106,6 +1155,7 @@ function setupInput() {
       case ' ': case 'Enter': placeTower(); e.preventDefault(); break;
       case 'w': case 'W': startWave(); break;
       case 'x': case 'X': case 'Delete': sellTower(); break;
+      case 'u': case 'U': upgradeTower(); break;
       case 'Escape': state.selectedPlacedTower = null; updateSellButton(); break;
       default: {
         const n = parseInt(e.key);
@@ -1166,6 +1216,7 @@ function setupInput() {
   // UI buttons
   document.getElementById('btn-wave').addEventListener('click', startWave);
   document.getElementById('btn-sell').addEventListener('click', sellTower);
+  document.getElementById('btn-upgrade').addEventListener('click', upgradeTower);
   document.getElementById('btn-place').addEventListener('click', () => {
     state.cursor.visible = true;
     placeTower();
@@ -1416,6 +1467,26 @@ function drawTowers() {
       ctx.fill();
     }
 
+    // Upgrade stars
+    const level = tower.level || 0;
+    if (level > 0) {
+      const starColors = ['', '#cd7f32', '#cd7f32', '#cd7f32', '#c0c0c0', '#ffd700'];
+      const starColor = starColors[level];
+      const starY = py + th - (tower.hp < tower.maxHp ? 7 : 3);
+      const starCount = level <= 3 ? level : 1;
+      const starW = starCount * 6;
+      const startX = px + tw / 2 - starW / 2 + 3;
+      ctx.fillStyle = starColor;
+      ctx.font = '8px monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      for (let s = 0; s < starCount; s++) {
+        ctx.fillText('\u2605', startX + s * 6, starY);
+      }
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+    }
+
     // Selection highlight
     if (tower === state.selectedPlacedTower) {
       ctx.strokeStyle = '#ffd700';
@@ -1425,7 +1496,7 @@ function drawTowers() {
       const tcy = (tower.y + size.h / 2) * TILE_SIZE;
       ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
       ctx.beginPath();
-      ctx.arc(tcx, tcy, type.range * TILE_SIZE, 0, Math.PI * 2);
+      ctx.arc(tcx, tcy, towerStat(tower, 'range') * TILE_SIZE, 0, Math.PI * 2);
       ctx.stroke();
       ctx.lineWidth = 1;
     }
@@ -1944,6 +2015,14 @@ function createTowerFields(t) {
         '<label>Slow Factor <input type="number" class="tw-speedFactor" min="0" step="0.1" value="' + (t.speedFactor || 1) + '"></label>' +
         '<label>Slow Dur <input type="number" class="tw-speedDuration" min="1" value="' + (t.speedDuration || 60) + '"></label>' +
       '</div>' +
+    '</fieldset>' +
+    '<fieldset><legend>Upgrades</legend>' +
+      '<div class="cfg-row">' +
+        '<label>Cost <input type="number" class="tw-upgradeCost" min="0" value="' + (t.upgradeCost || 10) + '"></label>' +
+        '<label>Dmg +<input type="number" class="tw-upgradeDmg" min="0" value="' + (t.upgradeDmg || 0) + '">%</label>' +
+        '<label>Range +<input type="number" class="tw-upgradeRange" min="0" value="' + (t.upgradeRange || 0) + '">%</label>' +
+        '<label>Rate +<input type="number" class="tw-upgradeRate" min="0" value="' + (t.upgradeRate || 0) + '">%</label>' +
+      '</div>' +
     '</fieldset>';
   div.querySelector('.tw-hasDot').addEventListener('change', function() {
     div.querySelector('.cfg-dot-fields').style.display = this.checked ? '' : 'none';
@@ -2015,6 +2094,10 @@ function readTowerFromForm(div) {
   t.sizeW = +div.querySelector('.tw-sizeW').value || 2;
   t.sizeH = +div.querySelector('.tw-sizeH').value || 2;
   if (div.querySelector('.tw-attackDir').value === 'fixed') t.attackDir = 'fixed';
+  t.upgradeCost = +div.querySelector('.tw-upgradeCost').value || 10;
+  t.upgradeDmg = +div.querySelector('.tw-upgradeDmg').value || 0;
+  t.upgradeRange = +div.querySelector('.tw-upgradeRange').value || 0;
+  t.upgradeRate = +div.querySelector('.tw-upgradeRate').value || 0;
   return t;
 }
 
@@ -2063,7 +2146,7 @@ function readSettings() {
 
 function addTowerType() {
   readSettings();
-  CONFIG.towers.push({ name: 'New', letter: 'X', color: '#ffffff', bg: '#444444', range: 2, damage: 1, fireRate: 30, cost: 10, hp: 5, damageType: 'physical', sizeW: 2, sizeH: 2 });
+  CONFIG.towers.push({ name: 'New', letter: 'X', color: '#ffffff', bg: '#444444', range: 2, damage: 1, fireRate: 30, cost: 10, hp: 5, damageType: 'physical', sizeW: 2, sizeH: 2, upgradeCost: 10, upgradeDmg: 25, upgradeRange: 15, upgradeRate: 10 });
   openDetail('tower', CONFIG.towers.length - 1);
 }
 
