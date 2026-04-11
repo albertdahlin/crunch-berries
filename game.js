@@ -277,8 +277,8 @@ function populateMapSelect() {
       '<div class="ms-saved-top">' +
         '<span class="ms-item-title">' + esc(map.name) + '</span>' +
         '<span class="ms-saved-btns">' +
-          '<button class="ms-btn-edit">Edit</button>' +
-          '<button class="ms-btn-del">Del</button>' +
+          '<button class="ms-btn-edit" title="Edit">\u270E</button>' +
+          '<button class="ms-btn-del" title="Delete">\u2715</button>' +
         '</span>' +
       '</div>' +
       '<div class="ms-item-desc">' + dims + ' \u2014 Tap to play</div>';
