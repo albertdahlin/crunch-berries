@@ -276,6 +276,98 @@ canvas {
 #btn-editor-save { background: #0d47a1; border-color: #42a5f5; color: #fff; }
 #btn-editor-back { background: #333; border-color: #666; }
 #btn-editor-clear { background: #4a1a1a; border-color: #f44336; color: #f44336; }
+
+/* Map select screen */
+#map-select {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 24px 16px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+}
+#map-select h1 {
+  color: #81d4fa;
+  font-family: monospace;
+  font-size: 24px;
+  margin-bottom: 24px;
+}
+#map-select .ms-list {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#map-select .ms-item {
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 12px 14px;
+  cursor: pointer;
+  font-family: monospace;
+  touch-action: manipulation;
+}
+#map-select .ms-item:active { background: #1a1a2a; }
+#map-select .ms-item-title {
+  font-size: 15px;
+  font-weight: bold;
+  color: #4caf50;
+}
+#map-select .ms-item-desc {
+  font-size: 12px;
+  color: #555;
+  margin-top: 4px;
+}
+#map-select .ms-saved {
+  border-color: #4fc3f7;
+}
+#map-select .ms-saved .ms-item-title {
+  color: #fff;
+}
+#map-select .ms-saved-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+#map-select .ms-saved-btns {
+  display: flex;
+  gap: 6px;
+}
+#map-select .ms-saved-btns button {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: monospace;
+  border-radius: 3px;
+  cursor: pointer;
+  border: 1px solid;
+  touch-action: manipulation;
+}
+#map-select .ms-btn-edit {
+  background: #1a2a1a;
+  border-color: #4caf50;
+  color: #4caf50;
+}
+#map-select .ms-btn-del {
+  background: #2a0a0a;
+  border-color: #f44336;
+  color: #f44336;
+}
+#map-select .ms-settings {
+  border-color: #555;
+  text-align: center;
+}
+#map-select .ms-settings .ms-item-title {
+  color: #888;
+}
+#map-select .ms-version {
+  color: #333;
+  font-family: monospace;
+  font-size: 12px;
+  margin-top: 12px;
+}
 </style>
 </head>
 <body>
@@ -286,6 +378,11 @@ canvas {
   <span class="hud-score" id="hud-score">S:0</span>
   <span class="hud-version" id="hud-version"></span>
   <span class="hud-phase" id="hud-phase"></span>
+</div>
+<div id="map-select">
+  <h1>TOWER DEFENCE</h1>
+  <div class="ms-list" id="ms-list"></div>
+  <div class="ms-version" id="ms-version"></div>
 </div>
 <canvas id="game"></canvas>
 <div id="ui">

@@ -143,6 +143,7 @@ function openMapEditor(mapIndex) {
   editor.painting = false;
   state.cursor = { x: Math.floor(COLS / 2), y: Math.floor(ROWS / 2), visible: false };
   state.phase = 'MAP_EDIT';
+  hideMapSelect();
   document.getElementById('hud').style.display = 'none';
   document.getElementById('ui').style.display = 'none';
   document.getElementById('editor-ui').style.display = 'flex';
@@ -234,18 +235,75 @@ function startGameWithGround() {
   recomputePath();
   rebuildTowerButtons();
   state.phase = 'PLACE';
+  hideMapSelect();
   document.getElementById('hud').style.display = 'flex';
   document.getElementById('ui').style.display = 'flex';
 }
 
 function enterMapSelect() {
-  // Use a fixed 15-col layout for the menu so items fit vertically
-  COLS = 15;
-  ROWS = Math.max(15, Math.ceil(window.innerHeight / Math.floor(window.innerWidth / 15)));
-  grid = new Uint8Array(COLS * ROWS);
-  ground = new Uint8Array(COLS * ROWS);
-  resizeCanvas();
   state.phase = 'MAP_SELECT';
+  document.getElementById('map-select').style.display = 'flex';
+  canvas.style.display = 'none';
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('ui').style.display = 'none';
+  populateMapSelect();
+}
+
+function populateMapSelect() {
+  const list = document.getElementById('ms-list');
+  list.innerHTML = '';
+
+  // Play Empty Map
+  const empty = document.createElement('div');
+  empty.className = 'ms-item';
+  empty.innerHTML = '<div class="ms-item-title">Play Empty Map</div><div class="ms-item-desc">Open field, build freely</div>';
+  empty.addEventListener('click', () => startGame(-1));
+  list.appendChild(empty);
+
+  // + New Map
+  const newMap = document.createElement('div');
+  newMap.className = 'ms-item';
+  newMap.style.borderColor = '#4caf50';
+  newMap.innerHTML = '<div class="ms-item-title">+ New Map</div><div class="ms-item-desc">Open the map editor</div>';
+  newMap.addEventListener('click', () => openMapEditor(-1));
+  list.appendChild(newMap);
+
+  // Saved maps
+  savedMaps.forEach((map, i) => {
+    const item = document.createElement('div');
+    item.className = 'ms-item ms-saved';
+    const dims = (map.cols || 24) + 'x' + (map.rows || 48);
+    item.innerHTML =
+      '<div class="ms-saved-top">' +
+        '<span class="ms-item-title">' + esc(map.name) + '</span>' +
+        '<span class="ms-saved-btns">' +
+          '<button class="ms-btn-edit">Edit</button>' +
+          '<button class="ms-btn-del">Del</button>' +
+        '</span>' +
+      '</div>' +
+      '<div class="ms-item-desc">' + dims + ' \u2014 Tap to play</div>';
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.ms-btn-edit') || e.target.closest('.ms-btn-del')) return;
+      startGame(i);
+    });
+    item.querySelector('.ms-btn-edit').addEventListener('click', () => openMapEditor(i));
+    item.querySelector('.ms-btn-del').addEventListener('click', () => { deleteMap(i); populateMapSelect(); });
+    list.appendChild(item);
+  });
+
+  // Settings
+  const settings = document.createElement('div');
+  settings.className = 'ms-item ms-settings';
+  settings.innerHTML = '<div class="ms-item-title">Settings (S)</div>';
+  settings.addEventListener('click', () => openSettings());
+  list.appendChild(settings);
+
+  document.getElementById('ms-version').textContent = 'v' + VERSION;
+}
+
+function hideMapSelect() {
+  document.getElementById('map-select').style.display = 'none';
+  canvas.style.display = 'block';
 }
 
 function exitEditor() {
@@ -1001,16 +1059,11 @@ function setupInput() {
   });
   canvas.addEventListener('mouseup', () => { editor.painting = false; });
 
-  // Click - map select and tower placement
+  // Click - tower placement
   canvas.addEventListener('click', (e) => {
     if (isTouchDevice) return;
     if (state.phase === 'MAP_EDIT') return; // handled by mousedown/move
     const t = canvasToTile(e.clientX, e.clientY);
-
-    if (state.phase === 'MAP_SELECT') {
-      handleMapSelectClick(t.px, t.py);
-      return;
-    }
 
     const clickedTower = getTowerAt(t.x, t.y);
     if (clickedTower) {
@@ -1093,11 +1146,6 @@ function setupInput() {
     if (state.phase === 'MAP_EDIT') return; // already handled
     if (Math.abs(dx) > 10 || Math.abs(dy) > 10) return;
     const t = canvasToTile(touch.clientX, touch.clientY);
-
-    if (state.phase === 'MAP_SELECT') {
-      handleMapSelectClick(t.px, t.py);
-      return;
-    }
 
     const clickedTower = getTowerAt(t.x, t.y);
     if (clickedTower) {
@@ -1205,10 +1253,7 @@ function render() {
   ctx.fillStyle = '#0e0e1a';
   ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-  if (state.phase === 'MAP_SELECT') {
-    drawMapSelect();
-    return;
-  }
+  if (state.phase === 'MAP_SELECT') return;
   if (state.phase === 'MAP_EDIT') {
     drawGrid();
     drawEditorCursor();
@@ -1541,187 +1586,6 @@ function drawEffects() {
   }
 }
 
-function getMapSelectLayout() {
-  const itemSize = Math.floor(TILE_SIZE * 0.9);
-  const descSize = Math.floor(TILE_SIZE * 0.6);
-  const boxH = TILE_SIZE * 3;
-  const boxW = COLS * TILE_SIZE * 0.85;
-  const centerX = CANVAS_W / 2;
-  const startY = TILE_SIZE * 5;
-  const gap = TILE_SIZE * 0.5;
-  // Items: "New Map" button, then each saved map, then settings
-  const items = [];
-  // "Empty" play option
-  items.push({ type: 'play-empty', y: 0, h: boxH });
-  // "New Map" editor button
-  items.push({ type: 'new-map', y: 0, h: boxH });
-  // Saved maps
-  for (let i = 0; i < savedMaps.length; i++) {
-    items.push({ type: 'saved', idx: i, y: 0, h: boxH });
-  }
-  // Settings + version
-  items.push({ type: 'settings', y: 0, h: TILE_SIZE * 2.5 });
-  // Calculate positions
-  let cy = startY;
-  for (const item of items) {
-    item.y = cy;
-    cy += item.h + gap;
-  }
-  return { items, boxW, boxH, centerX, itemSize, descSize };
-}
-
-function drawMapSelect() {
-  const layout = getMapSelectLayout();
-  const { items, boxW, centerX, itemSize, descSize } = layout;
-  const titleSize = Math.floor(TILE_SIZE * 1.5);
-
-  // Title
-  ctx.font = 'bold ' + titleSize + 'px monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#81d4fa';
-  ctx.fillText('TOWER DEFENCE', centerX, TILE_SIZE * 2.5);
-
-  // Store hit areas for click handling
-  state._mapSelectItems = items;
-  state._mapSelectBoxW = boxW;
-
-  for (const item of items) {
-    const y = item.y;
-    const x = centerX - boxW / 2;
-
-    if (item.type === 'play-empty') {
-      // Play Empty map button
-      ctx.fillStyle = '#111';
-      ctx.fillRect(x, y, boxW, item.h);
-      ctx.strokeStyle = '#333';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, boxW, item.h);
-      ctx.font = 'bold ' + itemSize + 'px monospace';
-      ctx.fillStyle = '#4caf50';
-      ctx.fillText('Play Empty Map', centerX, y + item.h * 0.4);
-      ctx.font = descSize + 'px monospace';
-      ctx.fillStyle = '#555';
-      ctx.fillText('Open field, build freely', centerX, y + item.h * 0.75);
-
-    } else if (item.type === 'new-map') {
-      // New map button
-      ctx.fillStyle = '#0a1a0a';
-      ctx.fillRect(x, y, boxW, item.h);
-      ctx.strokeStyle = '#4caf50';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, boxW, item.h);
-      ctx.font = 'bold ' + itemSize + 'px monospace';
-      ctx.fillStyle = '#4caf50';
-      ctx.fillText('+ New Map', centerX, y + item.h * 0.4);
-      ctx.font = descSize + 'px monospace';
-      ctx.fillStyle = '#555';
-      ctx.fillText('Open the map editor', centerX, y + item.h * 0.75);
-
-    } else if (item.type === 'saved') {
-      const map = savedMaps[item.idx];
-      // Map box
-      ctx.fillStyle = '#111';
-      ctx.fillRect(x, y, boxW, item.h);
-      ctx.strokeStyle = '#4fc3f7';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, boxW, item.h);
-      // Map name + Play
-      ctx.font = 'bold ' + itemSize + 'px monospace';
-      ctx.fillStyle = '#fff';
-      ctx.textAlign = 'left';
-      ctx.fillText(map.name, x + TILE_SIZE * 0.5, y + item.h * 0.35);
-      // Edit button
-      const btnW = TILE_SIZE * 3;
-      const btnH = item.h * 0.5;
-      const editX = x + boxW - btnW * 2 - TILE_SIZE * 0.5;
-      const editY = y + (item.h - btnH) / 2;
-      ctx.fillStyle = '#1a2a1a';
-      ctx.fillRect(editX, editY, btnW, btnH);
-      ctx.strokeStyle = '#4caf50';
-      ctx.strokeRect(editX, editY, btnW, btnH);
-      ctx.font = descSize + 'px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#4caf50';
-      ctx.fillText('Edit', editX + btnW / 2, editY + btnH / 2);
-      item._editBtn = { x: editX, y: editY, w: btnW, h: btnH };
-      // Delete button
-      const delX = x + boxW - btnW - TILE_SIZE * 0.3;
-      ctx.fillStyle = '#2a0a0a';
-      ctx.fillRect(delX, editY, btnW, btnH);
-      ctx.strokeStyle = '#f44336';
-      ctx.strokeRect(delX, editY, btnW, btnH);
-      ctx.fillStyle = '#f44336';
-      ctx.fillText('Del', delX + btnW / 2, editY + btnH / 2);
-      item._delBtn = { x: delX, y: editY, w: btnW, h: btnH };
-      // "Tap to play" hint + dimensions
-      ctx.textAlign = 'left';
-      ctx.fillStyle = '#555';
-      const dims = (map.cols || 24) + 'x' + (map.rows || 48);
-      ctx.fillText(dims + '  Tap to play', x + TILE_SIZE * 0.5, y + item.h * 0.75);
-      ctx.textAlign = 'center';
-
-    } else if (item.type === 'settings') {
-      ctx.fillStyle = '#1a1a2a';
-      ctx.fillRect(x, y, boxW, item.h);
-      ctx.strokeStyle = '#555';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, boxW, item.h);
-      ctx.font = 'bold ' + itemSize + 'px monospace';
-      ctx.fillStyle = '#888';
-      ctx.fillText('Settings (S)', centerX, y + item.h / 2);
-    }
-  }
-
-  // Version at bottom
-  const lastItem = items[items.length - 1];
-  ctx.font = descSize + 'px monospace';
-  ctx.fillStyle = '#333';
-  ctx.textAlign = 'center';
-  ctx.fillText('v' + VERSION, centerX, lastItem.y + lastItem.h + TILE_SIZE);
-}
-
-function handleMapSelectClick(px, py) {
-  const items = state._mapSelectItems;
-  const boxW = state._mapSelectBoxW;
-  if (!items) return;
-  const centerX = CANVAS_W / 2;
-
-  for (const item of items) {
-    const x = centerX - boxW / 2;
-    if (py < item.y || py > item.y + item.h) continue;
-    if (px < x || px > x + boxW) continue;
-
-    if (item.type === 'play-empty') {
-      startGame(-1); // -1 = empty map
-      return;
-    }
-    if (item.type === 'new-map') {
-      openMapEditor(-1);
-      return;
-    }
-    if (item.type === 'saved') {
-      // Check edit/delete buttons first
-      const eb = item._editBtn;
-      if (eb && px >= eb.x && px <= eb.x + eb.w && py >= eb.y && py <= eb.y + eb.h) {
-        openMapEditor(item.idx);
-        return;
-      }
-      const db = item._delBtn;
-      if (db && px >= db.x && px <= db.x + db.w && py >= db.y && py <= db.y + db.h) {
-        deleteMap(item.idx);
-        return;
-      }
-      // Tap on box = play
-      startGame(item.idx);
-      return;
-    }
-    if (item.type === 'settings') {
-      openSettings();
-      return;
-    }
-  }
-}
 
 function handleMapSelectKey(e) {
   switch (e.key) {
@@ -1839,6 +1703,7 @@ let settingsDetail = { type: null, index: -1 };
 
 function openSettings() {
   document.getElementById('settings').style.display = 'flex';
+  document.getElementById('map-select').style.display = 'none';
   canvas.style.display = 'none';
   showSettingsList();
 }
@@ -1847,7 +1712,6 @@ function closeSettings() {
   readSettings();
   localStorage.setItem('td-config', JSON.stringify(CONFIG));
   document.getElementById('settings').style.display = 'none';
-  canvas.style.display = 'block';
   enterMapSelect();
 }
 
