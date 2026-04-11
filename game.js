@@ -1,7 +1,7 @@
 // === CONSTANTS ===
 const VERSION = '__VERSION__';
-const COLS = 24;
-const ROWS = 48;
+let COLS = 15;
+let ROWS = 15;
 const FPS = 30;
 const TICK_RATE = 1000 / FPS;
 
@@ -126,29 +126,28 @@ const editor = {
 };
 
 function openMapEditor(mapIndex) {
-  grid.fill(0);
-  ground.fill(GROUND_GRASS);
-  for (let x = 0; x < COLS; x++) {
-    ground[x] = GROUND_ROAD;
-    ground[(ROWS - 1) * COLS + x] = GROUND_ROAD;
-  }
   if (mapIndex >= 0 && savedMaps[mapIndex]) {
-    loadGroundFromMap(savedMaps[mapIndex].data);
-    editor.mapName = savedMaps[mapIndex].name;
+    const map = savedMaps[mapIndex];
+    resizeGrid(map.cols || 24, map.rows || 48);
+    loadGroundFromMap(map.data);
+    editor.mapName = map.name;
     editor.mapIndex = mapIndex;
   } else {
+    resizeGrid(15, 15);
     editor.mapIndex = -1;
     editor.mapName = 'My Map';
   }
   editor.brush = GROUND_GRASS;
   editor.brushSize = 1;
   editor.painting = false;
-  state.cursor = { x: 12, y: 24, visible: false };
+  state.cursor = { x: Math.floor(COLS / 2), y: Math.floor(ROWS / 2), visible: false };
   state.phase = 'MAP_EDIT';
   document.getElementById('hud').style.display = 'none';
   document.getElementById('ui').style.display = 'none';
   document.getElementById('editor-ui').style.display = 'flex';
   document.getElementById('editor-map-name').value = editor.mapName;
+  document.getElementById('editor-map-cols').value = COLS;
+  document.getElementById('editor-map-rows').value = ROWS;
   rebuildBrushButtons();
 }
 
@@ -190,8 +189,10 @@ function saveMap() {
   if (editor.mapIndex >= 0) {
     savedMaps[editor.mapIndex].data = data;
     savedMaps[editor.mapIndex].name = editor.mapName;
+    savedMaps[editor.mapIndex].cols = COLS;
+    savedMaps[editor.mapIndex].rows = ROWS;
   } else {
-    savedMaps.push({ name: editor.mapName, data: data });
+    savedMaps.push({ name: editor.mapName, data: data, cols: COLS, rows: ROWS });
     editor.mapIndex = savedMaps.length - 1;
   }
   saveMapsToStorage();
@@ -223,7 +224,7 @@ function startGameWithGround() {
   state.gold = CONFIG.game.startGold;
   state.score = 0;
   state.frame = 0;
-  state.cursor = { x: 12, y: 24, visible: false };
+  state.cursor = { x: Math.floor(COLS / 2), y: Math.floor(ROWS / 2), visible: false };
   state.selectedTower = 0;
   state.placeRotation = 0;
   state.message = '';
@@ -235,9 +236,19 @@ function startGameWithGround() {
   document.getElementById('ui').style.display = 'flex';
 }
 
+function enterMapSelect() {
+  // Use a fixed 15-col layout for the menu so items fit vertically
+  COLS = 15;
+  ROWS = Math.max(15, Math.ceil(window.innerHeight / Math.floor(window.innerWidth / 15)));
+  grid = new Uint8Array(COLS * ROWS);
+  ground = new Uint8Array(COLS * ROWS);
+  resizeCanvas();
+  state.phase = 'MAP_SELECT';
+}
+
 function exitEditor() {
   document.getElementById('editor-ui').style.display = 'none';
-  state.phase = 'MAP_SELECT';
+  enterMapSelect();
 }
 
 function deleteMap(idx) {
@@ -264,14 +275,39 @@ resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
 // === STATE ===
-const grid = new Uint8Array(COLS * ROWS);    // 0=empty, 1=tower
-const ground = new Uint8Array(COLS * ROWS);  // GROUND_* terrain type per tile
+let grid = new Uint8Array(COLS * ROWS);    // 0=empty, 1=tower
+let ground = new Uint8Array(COLS * ROWS);  // GROUND_* terrain type per tile
+
+function resizeGrid(newCols, newRows) {
+  const oldCols = COLS, oldRows = ROWS;
+  const oldGround = ground;
+  COLS = newCols;
+  ROWS = newRows;
+  grid = new Uint8Array(COLS * ROWS);
+  ground = new Uint8Array(COLS * ROWS);
+  ground.fill(GROUND_GRASS);
+  // Copy old terrain data where it overlaps
+  const copyW = Math.min(oldCols, COLS);
+  const copyH = Math.min(oldRows, ROWS);
+  for (let y = 0; y < copyH; y++) {
+    for (let x = 0; x < copyW; x++) {
+      ground[y * COLS + x] = oldGround[y * oldCols + x];
+    }
+  }
+  // Enforce top/bottom road rows
+  for (let x = 0; x < COLS; x++) {
+    ground[x] = GROUND_ROAD;
+    ground[(ROWS - 1) * COLS + x] = GROUND_ROAD;
+  }
+  resizeCanvas();
+}
+
 const state = {
   towers: [],
   monsters: [],
   effects: [],      // visual effects [{x,y,tx,ty,ttl,color}]
   projectiles: [],   // in-flight projectiles
-  cursor: { x: 12, y: 24, visible: false },
+  cursor: { x: 7, y: 7, visible: false },
   selectedTower: 0,
   placeRotation: 0,   // 0=up, 1=right, 2=down, 3=left (for pierce tower)
   wave: 0,
@@ -1021,6 +1057,20 @@ function setupInput() {
     editor.brushSize = editor.brushSize >= 3 ? 1 : editor.brushSize + 1;
     document.getElementById('btn-editor-size').textContent = editor.brushSize + 'x' + editor.brushSize;
   });
+  document.getElementById('editor-map-cols').addEventListener('change', (e) => {
+    const v = Math.max(5, Math.min(60, +e.target.value || 15));
+    e.target.value = v;
+    resizeGrid(v, ROWS);
+    state.cursor.x = Math.min(state.cursor.x, COLS - 1);
+    state.cursor.y = Math.min(state.cursor.y, ROWS - 1);
+  });
+  document.getElementById('editor-map-rows').addEventListener('change', (e) => {
+    const v = Math.max(5, Math.min(60, +e.target.value || 15));
+    e.target.value = v;
+    resizeGrid(COLS, v);
+    state.cursor.x = Math.min(state.cursor.x, COLS - 1);
+    state.cursor.y = Math.min(state.cursor.y, ROWS - 1);
+  });
 }
 
 function selectTowerType(idx) {
@@ -1503,10 +1553,11 @@ function drawMapSelect() {
       ctx.fillStyle = '#f44336';
       ctx.fillText('Del', delX + btnW / 2, editY + btnH / 2);
       item._delBtn = { x: delX, y: editY, w: btnW, h: btnH };
-      // "Tap to play" hint
+      // "Tap to play" hint + dimensions
       ctx.textAlign = 'left';
       ctx.fillStyle = '#555';
-      ctx.fillText('Tap to play', x + TILE_SIZE * 0.5, y + item.h * 0.75);
+      const dims = (map.cols || 24) + 'x' + (map.rows || 48);
+      ctx.fillText(dims + '  Tap to play', x + TILE_SIZE * 0.5, y + item.h * 0.75);
       ctx.textAlign = 'center';
 
     } else if (item.type === 'settings') {
@@ -1691,7 +1742,7 @@ function closeSettings() {
   localStorage.setItem('td-config', JSON.stringify(CONFIG));
   document.getElementById('settings').style.display = 'none';
   canvas.style.display = 'block';
-  state.phase = 'MAP_SELECT';
+  enterMapSelect();
 }
 
 function resetSettings() {
@@ -1978,14 +2029,12 @@ function esc(s) { return s.replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 // === INIT ===
 function startGame(mapIdx) {
   // mapIdx: -1 = empty, 0+ = index into savedMaps
-  grid.fill(0);
-  ground.fill(GROUND_GRASS);
-  for (let x = 0; x < COLS; x++) {
-    ground[x] = GROUND_ROAD;
-    ground[(ROWS - 1) * COLS + x] = GROUND_ROAD;
-  }
   if (mapIdx >= 0 && savedMaps[mapIdx]) {
-    loadGroundFromMap(savedMaps[mapIdx].data);
+    const map = savedMaps[mapIdx];
+    resizeGrid(map.cols || 24, map.rows || 48);
+    loadGroundFromMap(map.data);
+  } else {
+    resizeGrid(15, 15);
   }
   startGameWithGround();
 }
@@ -2007,6 +2056,7 @@ function init() {
   document.getElementById('hud').style.display = 'none';
   document.getElementById('ui').style.display = 'none';
   document.getElementById('editor-ui').style.display = 'none';
+  enterMapSelect();
   setupInput();
   requestAnimationFrame(gameLoop);
 }
