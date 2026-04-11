@@ -2035,6 +2035,10 @@ function createTowerFields(t) {
         '<label>H <input type="number" class="tw-sizeH" min="1" max="4" value="' + (t.sizeH || 2) + '"></label>' +
         '<label>Cost <input type="number" class="tw-cost" min="0" value="' + t.cost + '"></label>' +
         '<label>HP <input type="number" class="tw-hp" min="1" value="' + t.hp + '"></label>' +
+        '<label>Attack dir <select class="tw-attackDir">' +
+          '<option value="any"' + (adVal === 'any' ? ' selected' : '') + '>Any</option>' +
+          '<option value="fixed"' + (adVal === 'fixed' ? ' selected' : '') + '>Fixed</option>' +
+        '</select></label>' +
       '</div>' +
     '</fieldset>' +
     '<fieldset><legend>Combat</legend>' +
@@ -2045,10 +2049,6 @@ function createTowerFields(t) {
       '</div>' +
       '<div class="cfg-row">' +
         '<label>Dmg Type <select class="tw-damageType">' + dtOpts + '</select></label>' +
-        '<label>Attack <select class="tw-attackDir">' +
-          '<option value="any"' + (adVal === 'any' ? ' selected' : '') + '>Any</option>' +
-          '<option value="fixed"' + (adVal === 'fixed' ? ' selected' : '') + '>Fixed</option>' +
-        '</select></label>' +
         '<label><input type="checkbox" class="tw-pierce"' + (t.pierce ? ' checked' : '') + '> Pierce</label>' +
       '</div>' +
       '<div class="cfg-row">' +
