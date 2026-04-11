@@ -150,6 +150,7 @@ function openMapEditor(mapIndex) {
   document.getElementById('editor-map-name').value = editor.mapName;
   document.getElementById('editor-map-cols').value = COLS;
   document.getElementById('editor-map-rows').value = ROWS;
+  document.getElementById('btn-editor-delete').style.display = editor.mapIndex >= 0 ? '' : 'none';
   rebuildBrushButtons();
 }
 
@@ -276,18 +277,14 @@ function populateMapSelect() {
     item.innerHTML =
       '<div class="ms-saved-top">' +
         '<span class="ms-item-title">' + esc(map.name) + '</span>' +
-        '<span class="ms-saved-btns">' +
-          '<button class="ms-btn-edit" title="Edit">\u270E</button>' +
-          '<button class="ms-btn-del" title="Delete">\u2715</button>' +
-        '</span>' +
+        '<button class="ms-btn-edit" title="Edit">\u270E</button>' +
       '</div>' +
       '<div class="ms-item-desc">' + dims + ' \u2014 Tap to play</div>';
     item.addEventListener('click', (e) => {
-      if (e.target.closest('.ms-btn-edit') || e.target.closest('.ms-btn-del')) return;
+      if (e.target.closest('.ms-btn-edit')) return;
       startGame(i);
     });
     item.querySelector('.ms-btn-edit').addEventListener('click', () => openMapEditor(i));
-    item.querySelector('.ms-btn-del').addEventListener('click', () => { deleteMap(i); populateMapSelect(); });
     list.appendChild(item);
   });
 
@@ -1188,6 +1185,12 @@ function setupInput() {
     for (let x = 0; x < COLS; x++) {
       ground[x] = GROUND_ROAD;
       ground[(ROWS - 1) * COLS + x] = GROUND_ROAD;
+    }
+  });
+  document.getElementById('btn-editor-delete').addEventListener('click', () => {
+    if (editor.mapIndex >= 0) {
+      deleteMap(editor.mapIndex);
+      exitEditor();
     }
   });
   document.getElementById('btn-editor-back').addEventListener('click', exitEditor);
