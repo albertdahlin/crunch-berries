@@ -495,7 +495,7 @@ function isTopRowReachable(tempGrid) {
 }
 
 // === TOWER LOGIC ===
-const ROT_NAMES = ['Up', 'Right', 'Down', 'Left'];
+const ROT_NAMES = ['\u2191', '\u2192', '\u2193', '\u2190'];
 
 function getTowerSize(typeIdx, rotation) {
   const type = CONFIG.towers[typeIdx];
@@ -612,7 +612,12 @@ function sellTower() {
 function updateSellButton() {
   const btn = document.getElementById('btn-sell');
   if (!btn) return;
-  if (state.selectedPlacedTower) {
+  const hasSel = !!state.selectedPlacedTower;
+  document.getElementById('tower-buttons').style.display = hasSel ? 'none' : '';
+  document.getElementById('btn-place').style.display = hasSel ? 'none' : '';
+  document.getElementById('btn-wave').style.display = hasSel ? 'none' : '';
+  document.getElementById('btn-settings').style.display = hasSel ? 'none' : '';
+  if (hasSel) {
     const refund = getSellRefund(state.selectedPlacedTower);
     const type = CONFIG.towers[state.selectedPlacedTower.typeIdx];
     btn.textContent = 'Sell ' + (type ? type.name : '?') + ' (+' + refund + 'g)';
