@@ -9,8 +9,8 @@ const TICK_RATE = 1000 / FPS;
 let TILE_SIZE, CANVAS_W, CANVAS_H;
 
 // === DAMAGE TYPES ===
-const DAMAGE_TYPES = ['physical', 'fire', 'ice', 'lightning'];
-const DAMAGE_TYPE_COLORS = { physical: '#aaa', fire: '#ff6600', ice: '#66ccff', lightning: '#ffff33' };
+const DAMAGE_TYPES = ['physical', 'fire', 'ice', 'lightning', 'poison'];
+const DAMAGE_TYPE_COLORS = { physical: '#aaa', fire: '#ff6600', ice: '#66ccff', lightning: '#ffff33', poison: '#aa44ff' };
 
 // === CONFIG (data-driven, editable via settings) ===
 const DEFAULT_CONFIG = {
@@ -18,13 +18,13 @@ const DEFAULT_CONFIG = {
     { name: 'Melee',     letter: 'M', color: '#4fc3f7', bg: '#1565c0', range: 1, damage: 3, fireRate: 15, cost: 10, hp: 10, damageType: 'physical' },
     { name: 'Range',     letter: 'R', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 5, damageType: 'physical' },
     { name: 'DOT',       letter: 'D', color: '#81c784', bg: '#2e7d32', range: 1, damage: 0, fireRate: 30, cost: 20, hp: 8, damageType: 'fire', dot: { dps: 1, duration: 90 } },
-    { name: 'Pierce',    letter: 'P', color: '#ce93d8', bg: '#6a1b9a', range: 5, damage: 1, fireRate: 45, cost: 25, hp: 5, damageType: 'lightning', pierce: true },
+    { name: 'Pierce',    letter: 'P', color: '#ce93d8', bg: '#6a1b9a', range: 5, damage: 1, fireRate: 45, cost: 25, hp: 5, damageType: 'lightning', pierce: true, sizeW: 1, sizeH: 2, attackDir: 'fixed' },
     { name: 'Barricade', letter: 'B', color: '#90a4ae', bg: '#455a64', range: 0, damage: 0, fireRate: 9999, cost: 3, hp: 15 },
   ],
   monsters: [
     { name: 'Normal', letter: 'N', color: '#ef5350', hp: 12, speed: 0.08, reward: 5 },
     { name: 'Fast',   letter: 'F', color: '#ff8a65', hp: 6,  speed: 0.16, reward: 7, damageModifiers: { ice: 2 } },
-    { name: 'Tank',   letter: 'H', color: '#ab47bc', hp: 30, speed: 0.05, reward: 12, damageModifiers: { physical: 0.5, fire: 2 } },
+    { name: 'Tank',   letter: 'H', color: '#ab47bc', hp: 30, speed: 0.05, reward: 12, damageModifiers: { physical: 0.5, fire: 2, poison: 1.5 } },
   ],
   waves: {
     baseCounts: [6, 3, 2],
@@ -438,10 +438,9 @@ const ROT_NAMES = ['Up', 'Right', 'Down', 'Left'];
 
 function getTowerSize(typeIdx, rotation) {
   const type = CONFIG.towers[typeIdx];
-  if (type && type.pierce) {
-    return (rotation === 0 || rotation === 2) ? { w: 1, h: 2 } : { w: 2, h: 1 };
-  }
-  return { w: 2, h: 2 };
+  if (!type) return { w: 2, h: 2 };
+  const sw = type.sizeW || 2, sh = type.sizeH || 2;
+  return (rotation === 1 || rotation === 3) ? { w: sh, h: sw } : { w: sw, h: sh };
 }
 
 function canPlaceTower(tx, ty, typeIdx, rotation) {
@@ -569,27 +568,35 @@ function updateTowers() {
     const tcx = tower.x + tSize.w / 2;
     const tcy = tower.y + tSize.h / 2;
 
-    if (type.pierce) {
-      // Fixed direction based on tower rotation
-      const dir = tower.rotation * 2; // 0=up, 2=right, 4=down, 6=left
-      // Shoot origin: center of the short side facing the fire direction
-      let ox, oy;
-      if (tower.rotation === 0) { ox = tower.x + 0.5; oy = tower.y; }
-      else if (tower.rotation === 1) { ox = tower.x + 2; oy = tower.y + 0.5; }
-      else if (tower.rotation === 2) { ox = tower.x + 0.5; oy = tower.y + 2; }
-      else { ox = tower.x; oy = tower.y + 0.5; }
+    // Facing direction for fixed towers
+    const isFixed = type.attackDir === 'fixed';
+    const fdx = [0, 1, 0, -1][tower.rotation];
+    const fdy = [-1, 0, 1, 0][tower.rotation];
 
-      // Check corridor for monsters and deal damage
+    // Fire origin: facing edge for fixed, center otherwise
+    let ox = tcx, oy = tcy;
+    if (isFixed) {
+      if (tower.rotation === 0) { ox = tower.x + tSize.w / 2; oy = tower.y; }
+      else if (tower.rotation === 1) { ox = tower.x + tSize.w; oy = tower.y + tSize.h / 2; }
+      else if (tower.rotation === 2) { ox = tower.x + tSize.w / 2; oy = tower.y + tSize.h; }
+      else { ox = tower.x; oy = tower.y + tSize.h / 2; }
+    }
+
+    if (type.pierce) {
+      // Pierce corridor attack
+      const dir = tower.rotation * 2; // 0=up, 2=right, 4=down, 6=left
+      const corridorW = Math.max(tSize.w, tSize.h) === tSize.w ? tSize.h : tSize.w;
+
       let hit = false;
       for (const m of state.monsters) {
         if (m.hp <= 0) continue;
         const rx = m.x - ox;
         const ry = m.y - oy;
         let inCorridor = false;
-        if (dir === 0 && Math.abs(rx) < 1 && ry >= -type.range && ry <= 0) inCorridor = true;
-        if (dir === 4 && Math.abs(rx) < 1 && ry >= 0 && ry <= type.range) inCorridor = true;
-        if (dir === 2 && Math.abs(ry) < 1 && rx >= 0 && rx <= type.range) inCorridor = true;
-        if (dir === 6 && Math.abs(ry) < 1 && rx >= -type.range && rx <= 0) inCorridor = true;
+        if (dir === 0 && Math.abs(rx) < corridorW && ry >= -type.range && ry <= 0) inCorridor = true;
+        if (dir === 4 && Math.abs(rx) < corridorW && ry >= 0 && ry <= type.range) inCorridor = true;
+        if (dir === 2 && Math.abs(ry) < corridorW && rx >= 0 && rx <= type.range) inCorridor = true;
+        if (dir === 6 && Math.abs(ry) < corridorW && rx >= -type.range && rx <= 0) inCorridor = true;
         if (inCorridor) {
           applyDamage(m, type.damage, type.damageType);
           if (type.speedFactor && type.speedFactor !== 1) {
@@ -598,7 +605,7 @@ function updateTowers() {
           hit = true;
         }
       }
-      if (!hit) continue; // only fire when targets are in corridor
+      if (!hit) continue;
       tower.lastFire = state.frame;
       const ex = ox + DX[dir] * type.range;
       const ey = oy + DY[dir] * type.range;
@@ -611,10 +618,13 @@ function updateTowers() {
       let nearestHasDot = true;
       for (const m of state.monsters) {
         if (m.hp <= 0) continue;
+        if (isFixed) {
+          const dx = m.x - tcx, dy = m.y - tcy;
+          if (dx * fdx + dy * fdy <= 0) continue;
+        }
         const d = distToTower(m.x, m.y, tower);
         if (d > type.range + 1) continue;
         const hasDot = !!m.dot;
-        // Prefer targets without DOT; among same DOT status, prefer nearest
         if ((!hasDot && nearestHasDot) || (hasDot === nearestHasDot && d < nearDist)) {
           nearDist = d;
           nearest = m;
@@ -623,12 +633,11 @@ function updateTowers() {
       }
       if (!nearest) continue;
       tower.lastFire = state.frame;
-      // Apply/refresh DOT (doesn't stack), carries tower's damage type
       nearest.dot = { dps: type.dot.dps, remaining: type.dot.duration, damageType: type.damageType || 'physical' };
       if (type.speedFactor && type.speedFactor !== 1) {
         applySpeedMod(nearest, type.speedFactor, type.speedDuration);
       }
-      state.effects.push({ x: tcx, y: tcy, tx: nearest.x, ty: nearest.y, ttl: 4, color: type.color });
+      state.effects.push({ x: ox, y: oy, tx: nearest.x, ty: nearest.y, ttl: 4, color: type.color });
 
     } else {
       // Single-target (Melee / Range)
@@ -636,6 +645,10 @@ function updateTowers() {
       let nearDist = Infinity;
       for (const m of state.monsters) {
         if (m.hp <= 0) continue;
+        if (isFixed) {
+          const dx = m.x - tcx, dy = m.y - tcy;
+          if (dx * fdx + dy * fdy <= 0) continue;
+        }
         const d = (type.range <= 1) ? distToTower(m.x, m.y, tower) : Math.hypot(m.x - tcx, m.y - tcy);
         if (d < nearDist && d <= type.range + 1) {
           nearDist = d;
@@ -646,12 +659,11 @@ function updateTowers() {
       tower.lastFire = state.frame;
 
       if (type.projectileSpeed > 0) {
-        // Fire a projectile on a fixed trajectory toward target's current position
-        const dx = nearest.x - tcx;
-        const dy = nearest.y - tcy;
+        const dx = nearest.x - ox;
+        const dy = nearest.y - oy;
         const dist = Math.hypot(dx, dy) || 1;
         state.projectiles.push({
-          x: tcx, y: tcy,
+          x: ox, y: oy,
           tx: nearest.x, ty: nearest.y,
           vx: (dx / dist) * type.projectileSpeed,
           vy: (dy / dist) * type.projectileSpeed,
@@ -660,7 +672,6 @@ function updateTowers() {
           color: type.color,
         });
       } else {
-        // Instant damage
         const dmgType = type.damageType || 'physical';
         applyDamage(nearest, type.damage, dmgType);
         if (type.speedFactor && type.speedFactor !== 1) {
@@ -669,7 +680,7 @@ function updateTowers() {
         if (type.splashRadius > 0) {
           applySplash(nearest.x, nearest.y, type.splashRadius, type, nearest);
         }
-        state.effects.push({ x: tcx, y: tcy, tx: nearest.x, ty: nearest.y, ttl: 4, color: type.color });
+        state.effects.push({ x: ox, y: oy, tx: nearest.x, ty: nearest.y, ttl: 4, color: type.color });
       }
     }
   }
@@ -1075,8 +1086,9 @@ function setupInput() {
 
 function selectTowerType(idx) {
   if (idx >= 0 && idx < CONFIG.towers.length) {
-    if (state.selectedTower === idx && CONFIG.towers[idx].pierce) {
-      // Already selected pierce tower: rotate
+    const t = CONFIG.towers[idx];
+    const sw = t.sizeW || 2, sh = t.sizeH || 2;
+    if (state.selectedTower === idx && (sw !== sh || t.attackDir === 'fixed')) {
       rotatePlacement();
       return;
     }
@@ -1101,7 +1113,8 @@ function updateTowerButtonLabels() {
     const i = parseInt(btn.dataset.tower);
     const t = CONFIG.towers[i];
     let label = (i + 1) + ': ' + t.name + ' (' + t.cost + 'g)';
-    if (t.pierce && state.selectedTower === i) {
+    const sw = t.sizeW || 2, sh = t.sizeH || 2;
+    if (state.selectedTower === i && (sw !== sh || t.attackDir === 'fixed')) {
       label += ' ' + ROT_NAMES[state.placeRotation];
     }
     btn.textContent = label;
@@ -1247,8 +1260,8 @@ function drawTowers() {
     ctx.fillStyle = type.color;
     ctx.fillText(type.letter, px + tw / 2, py + th / 2);
 
-    // Direction arrow for pierce towers
-    if (type.pierce) {
+    // Direction arrow for fixed-direction towers
+    if (type.attackDir === 'fixed') {
       const as = TILE_SIZE * 0.3;
       ctx.fillStyle = type.color;
       ctx.beginPath();
@@ -1352,8 +1365,8 @@ function drawCursor() {
   ctx.fillStyle = canPlace ? 'rgba(255,255,255,0.5)' : 'rgba(255,80,80,0.3)';
   ctx.fillText(type.letter, px + tw / 2, py + th / 2);
 
-  // Direction arrow for pierce
-  if (type.pierce && canPlace) {
+  // Direction arrow for fixed-direction towers
+  if (type.attackDir === 'fixed' && canPlace) {
     const as = TILE_SIZE * 0.3;
     ctx.fillStyle = 'rgba(255,255,255,0.4)';
     ctx.beginPath();
@@ -1917,6 +1930,7 @@ function createTowerFields(t) {
   for (const dt of DAMAGE_TYPES) {
     dtOpts += '<option value="' + dt + '"' + (dt === dtVal ? ' selected' : '') + '>' + dt.charAt(0).toUpperCase() + dt.slice(1) + '</option>';
   }
+  const adVal = t.attackDir || 'any';
   div.innerHTML =
     '<div class="cfg-row">' +
       '<label>Name <input type="text" class="tw-name" value="' + esc(t.name) + '"></label>' +
@@ -1925,6 +1939,8 @@ function createTowerFields(t) {
     '<div class="cfg-row">' +
       '<label>Color <input type="color" class="tw-color" value="' + t.color + '"></label>' +
       '<label>BG <input type="color" class="tw-bg" value="' + t.bg + '"></label>' +
+      '<label>W <input type="number" class="tw-sizeW" min="1" max="4" value="' + (t.sizeW || 2) + '"></label>' +
+      '<label>H <input type="number" class="tw-sizeH" min="1" max="4" value="' + (t.sizeH || 2) + '"></label>' +
     '</div>' +
     '<div class="cfg-row">' +
       '<label>Range <input type="number" class="tw-range" min="0" value="' + t.range + '"></label>' +
@@ -1935,6 +1951,10 @@ function createTowerFields(t) {
       '<label>Cost <input type="number" class="tw-cost" min="0" value="' + t.cost + '"></label>' +
       '<label>HP <input type="number" class="tw-hp" min="1" value="' + t.hp + '"></label>' +
       '<label>Dmg Type <select class="tw-damageType">' + dtOpts + '</select></label>' +
+      '<label>Attack <select class="tw-attackDir">' +
+        '<option value="any"' + (adVal === 'any' ? ' selected' : '') + '>Any</option>' +
+        '<option value="fixed"' + (adVal === 'fixed' ? ' selected' : '') + '>Fixed</option>' +
+      '</select></label>' +
     '</div>' +
     '<div class="cfg-row">' +
       '<label><input type="checkbox" class="tw-pierce"' + (t.pierce ? ' checked' : '') + '> Pierce</label>' +
@@ -2013,6 +2033,9 @@ function readTowerFromForm(div) {
   if (sr > 0) t.splashRadius = sr;
   const ps = +div.querySelector('.tw-projectileSpeed').value;
   if (ps > 0) t.projectileSpeed = ps;
+  t.sizeW = +div.querySelector('.tw-sizeW').value || 2;
+  t.sizeH = +div.querySelector('.tw-sizeH').value || 2;
+  if (div.querySelector('.tw-attackDir').value === 'fixed') t.attackDir = 'fixed';
   return t;
 }
 
@@ -2060,7 +2083,7 @@ function readSettings() {
 
 function addTowerType() {
   readSettings();
-  CONFIG.towers.push({ name: 'New', letter: 'X', color: '#ffffff', bg: '#444444', range: 2, damage: 1, fireRate: 30, cost: 10, hp: 5, damageType: 'physical' });
+  CONFIG.towers.push({ name: 'New', letter: 'X', color: '#ffffff', bg: '#444444', range: 2, damage: 1, fireRate: 30, cost: 10, hp: 5, damageType: 'physical', sizeW: 2, sizeH: 2 });
   openDetail('tower', CONFIG.towers.length - 1);
 }
 
