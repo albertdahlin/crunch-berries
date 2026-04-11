@@ -73,18 +73,18 @@ const GROUND_GRASS = 0;
 const GROUND_ROAD  = 1;
 const GROUND_WATER = 2;
 const GROUND_SWAMP = 3;
-const GROUND_ROCK  = 4;
+const GROUND_FOREST = 4;
 
 const GROUND_WALKABLE   = [true, true, false, true, false];   // can monsters walk?
 const GROUND_BUILDABLE  = [true, false, false, false, true];   // can towers be placed?
 const GROUND_SPEED_MULT = [1.0, 1.0, 1.0, 0.5, 1.0];         // monster speed multiplier
 
-const GROUND_BG         = ['#1a2a1a', '#2a2218', '#0a1a3a', '#2a2a0a', '#33333a'];
-const GROUND_CHAR       = ['', '.', '~', ',', '#'];
-const GROUND_CHAR_COLOR = ['', '#3a3028', '#1a3a6a', '#4a4a1a', '#44445a'];
+const GROUND_BG         = ['#1a2a1a', '#2a2218', '#0a1a3a', '#2a2a0a', '#0a2a0a'];
+const GROUND_CHAR       = ['', '.', '~', ',', '\u2663'];
+const GROUND_CHAR_COLOR = ['', '#3a3028', '#1a3a6a', '#4a4a1a', '#1a5a1a'];
 
 // === SAVED MAPS ===
-const GROUND_NAMES = ['Grass', 'Road', 'Water', 'Swamp', 'Rock'];
+const GROUND_NAMES = ['Grass', 'Road', 'Water', 'Swamp', 'Forest'];
 
 let savedMaps = [];
 try {
