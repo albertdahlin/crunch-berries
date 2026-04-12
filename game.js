@@ -15,12 +15,22 @@ const DAMAGE_TYPE_COLORS = { physical: '#aaa', fire: '#ff6600', ice: '#66ccff', 
 // === CONFIG (data-driven, editable via settings) ===
 const DEFAULT_CONFIG = {
   towers: [
-    { name: 'Melee',     letter: 'M', color: '#4fc3f7', bg: '#1565c0', range: 1, damage: 3, fireRate: 15, cost: 10, hp: 10, damageType: 'physical', upgradeCost: 10, upgradeDmg: 25, upgradeRange: 15, upgradeRate: 10 },
-    { name: 'Range',     letter: 'R', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 5, damageType: 'physical', upgradeCost: 15, upgradeDmg: 20, upgradeRange: 20, upgradeRate: 10 },
-    { name: 'DOT',       letter: 'D', color: '#81c784', bg: '#2e7d32', range: 1, damage: 0, fireRate: 30, cost: 20, hp: 8, damageType: 'fire', dot: { dps: 1, duration: 90 }, upgradeCost: 12, upgradeDmg: 30, upgradeRange: 10, upgradeRate: 10 },
-    { name: 'Pierce',    letter: 'P', color: '#ce93d8', bg: '#6a1b9a', range: 5, damage: 1, fireRate: 45, cost: 25, hp: 5, damageType: 'lightning', pierce: true, sizeW: 1, sizeH: 2, attackDir: 'fixed', upgradeCost: 15, upgradeDmg: 25, upgradeRange: 15, upgradeRate: 10 },
+    { name: 'Soldier', letter: 'S', color: '#4fc3f7', bg: '#1565c0', range: 1, damage: 3, fireRate: 15, cost: 10, hp: 10, damageType: 'physical', upgrades: [
+      { name: 'Swordsman', letter: 'S', color: '#42a5f5', bg: '#1565c0', range: 1, damage: 5, fireRate: 12, cost: 15, hp: 14, damageType: 'physical', upgrades: [
+        { name: '2 Handed', letter: 'H', color: '#1e88e5', bg: '#0d47a1', range: 1, damage: 10, fireRate: 25, cost: 25, hp: 18, damageType: 'physical' },
+        { name: 'Dual Wield', letter: 'W', color: '#64b5f6', bg: '#1565c0', range: 1, damage: 3, fireRate: 6, cost: 25, hp: 12, damageType: 'physical' },
+      ]},
+      { name: 'Archer', letter: 'A', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 6, damageType: 'physical', projectileSpeed: 0.15, upgrades: [
+        { name: 'Poison', letter: 'P', color: '#81c784', bg: '#2e7d32', range: 3, damage: 1, fireRate: 25, cost: 25, hp: 5, damageType: 'poison', dot: { dps: 1.5, duration: 90 }, projectileSpeed: 0.12 },
+        { name: 'Crossbow', letter: 'X', color: '#ffee58', bg: '#f57f17', range: 4, damage: 6, fireRate: 50, cost: 30, hp: 6, damageType: 'physical', projectileSpeed: 0.2 },
+        { name: 'Longbow', letter: 'L', color: '#fff9c4', bg: '#f57f17', range: 6, damage: 2, fireRate: 18, cost: 20, hp: 5, damageType: 'physical', projectileSpeed: 0.18 },
+      ]},
+    ]},
+    { name: 'Range', letter: 'R', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 5, damageType: 'physical' },
+    { name: 'DOT', letter: 'D', color: '#81c784', bg: '#2e7d32', range: 1, damage: 0, fireRate: 30, cost: 20, hp: 8, damageType: 'fire', dot: { dps: 1, duration: 90 } },
+    { name: 'Pierce', letter: 'P', color: '#ce93d8', bg: '#6a1b9a', range: 5, damage: 1, fireRate: 45, cost: 25, hp: 5, damageType: 'lightning', pierce: true, sizeW: 1, sizeH: 2, attackDir: 'fixed' },
     { name: 'Barricade', letter: 'B', color: '#90a4ae', bg: '#455a64', range: 0, damage: 0, fireRate: 9999, cost: 3, hp: 15 },
-    { name: 'Ice',       letter: 'I', color: '#b3e5fc', bg: '#0277bd', range: 3, damage: 1, fireRate: 30, cost: 20, hp: 5, damageType: 'ice', splashRadius: 2, projectileSpeed: 0.1, speedFactor: 0.5, speedDuration: 60, upgradeCost: 15, upgradeDmg: 0, upgradeRange: 15, upgradeRate: 10 },
+    { name: 'Ice', letter: 'I', color: '#b3e5fc', bg: '#0277bd', range: 3, damage: 1, fireRate: 30, cost: 20, hp: 5, damageType: 'ice', splashRadius: 2, projectileSpeed: 0.1, speedFactor: 0.5, speedDuration: 60 },
   ],
   monsters: [
     { name: 'Normal', letter: 'N', color: '#ef5350', hp: 12, speed: 0.08, reward: 5 },
@@ -511,14 +521,19 @@ function getTowerSize(typeIdx, rotation) {
   return (rotation === 1 || rotation === 3) ? { w: sh, h: sw } : { w: sw, h: sh };
 }
 
+function getTowerNode(tower) {
+  let node = CONFIG.towers[tower.typeIdx];
+  for (const idx of tower.upgradePath || []) {
+    if (!node.upgrades || !node.upgrades[idx]) break;
+    node = node.upgrades[idx];
+  }
+  return node;
+}
+
 function towerStat(tower, stat) {
-  const type = CONFIG.towers[tower.typeIdx];
-  const lvl = tower.level || 0;
-  if (stat === 'damage') return type.damage * (1 + (type.upgradeDmg || 0) / 100 * lvl);
-  if (stat === 'range') return type.range * (1 + (type.upgradeRange || 0) / 100 * lvl);
-  if (stat === 'fireRate') return Math.max(1, Math.round(type.fireRate / (1 + (type.upgradeRate || 0) / 100 * lvl)));
-  if (stat === 'dotDps') return type.dot ? type.dot.dps * (1 + (type.upgradeDmg || 0) / 100 * lvl) : 0;
-  return type[stat];
+  const node = getTowerNode(tower);
+  if (stat === 'dotDps') return node.dot ? node.dot.dps : 0;
+  return node[stat];
 }
 
 function canPlaceTower(tx, ty, typeIdx, rotation) {
@@ -575,7 +590,7 @@ function placeTower() {
     maxHp: type.hp,
     lastFire: 0,
     placedAtWave: state.wave,
-    level: 0,
+    upgradePath: [],
     totalCost: type.cost,
   });
 
@@ -613,32 +628,26 @@ function getSellRefund(tower) {
   const type = CONFIG.towers[tower.typeIdx];
   if (!type) return 0;
   const total = tower.totalCost || type.cost;
-  if (state.phase === 'PLACE' && tower.placedAtWave === state.wave && (tower.level || 0) === 0) return total;
+  const path = tower.upgradePath || [];
+  if (state.phase === 'PLACE' && tower.placedAtWave === state.wave && path.length === 0) return total;
   return Math.floor(total * CONFIG.game.sellRefundPercent / 100);
 }
 
-function getUpgradeCost(tower) {
-  const type = CONFIG.towers[tower.typeIdx];
-  if (!type || (tower.level || 0) >= 5) return -1;
-  return Math.round((type.upgradeCost || 10) * ((tower.level || 0) + 1));
-}
-
-function upgradeTower() {
-  if (!state.selectedPlacedTower) return;
-  if (state.phase === 'GAMEOVER') return;
+function upgradeTower(choiceIndex) {
+  if (!state.selectedPlacedTower || state.phase === 'GAMEOVER') return;
   const tower = state.selectedPlacedTower;
-  const cost = getUpgradeCost(tower);
-  if (cost < 0) return;
-  if (state.gold < cost) { showMessage('Not enough gold!'); return; }
-  state.gold -= cost;
-  tower.level = (tower.level || 0) + 1;
-  tower.totalCost = (tower.totalCost || CONFIG.towers[tower.typeIdx].cost) + cost;
-  const type = CONFIG.towers[tower.typeIdx];
-  const newMax = Math.round(type.hp * (1 + tower.level * 0.5));
-  tower.hp += newMax - tower.maxHp;
-  tower.maxHp = newMax;
+  const node = getTowerNode(tower);
+  if (!node.upgrades || !node.upgrades[choiceIndex]) return;
+  const upgrade = node.upgrades[choiceIndex];
+  if (state.gold < upgrade.cost) { showMessage('Not enough gold!'); return; }
+  state.gold -= upgrade.cost;
+  tower.upgradePath = (tower.upgradePath || []).concat(choiceIndex);
+  tower.totalCost = (tower.totalCost || CONFIG.towers[tower.typeIdx].cost) + upgrade.cost;
+  const ratio = tower.hp / tower.maxHp;
+  tower.maxHp = upgrade.hp;
+  tower.hp = Math.max(1, Math.round(tower.maxHp * ratio));
   updateSellButton();
-  showMessage('Upgraded to level ' + tower.level + '!');
+  showMessage('Upgraded to ' + upgrade.name + '!');
 }
 
 function sellTower() {
@@ -655,28 +664,30 @@ function sellTower() {
 
 function updateSellButton() {
   const btn = document.getElementById('btn-sell');
-  const btnUp = document.getElementById('btn-upgrade');
+  const upgContainer = document.getElementById('upgrade-buttons');
   if (!btn) return;
   const hasSel = !!state.selectedPlacedTower;
   document.getElementById('tower-buttons').style.display = hasSel ? 'none' : '';
   document.getElementById('btn-place').style.display = hasSel ? 'none' : '';
   document.getElementById('btn-wave').style.display = hasSel ? 'none' : '';
   document.getElementById('btn-settings').style.display = hasSel ? 'none' : '';
+  upgContainer.innerHTML = '';
   if (hasSel) {
+    const node = getTowerNode(state.selectedPlacedTower);
     const refund = getSellRefund(state.selectedPlacedTower);
-    const type = CONFIG.towers[state.selectedPlacedTower.typeIdx];
-    btn.textContent = 'Sell ' + (type ? type.name : '?') + ' (+' + refund + 'g)';
+    btn.textContent = 'Sell ' + (node.name || '?') + ' (+' + refund + 'g)';
     btn.style.display = '';
-    const cost = getUpgradeCost(state.selectedPlacedTower);
-    if (cost >= 0) {
-      btnUp.textContent = 'Upgrade (' + cost + 'g)';
-      btnUp.style.display = '';
-    } else {
-      btnUp.style.display = 'none';
+    if (node.upgrades && node.upgrades.length > 0) {
+      node.upgrades.forEach((upg, i) => {
+        const ubtn = document.createElement('button');
+        ubtn.textContent = (i + 1) + '. ' + upg.name + ' (' + upg.cost + 'g)';
+        ubtn.style.cssText = 'background:#1b5e20;border-color:#4caf50;color:#fff';
+        ubtn.addEventListener('click', () => upgradeTower(i));
+        upgContainer.appendChild(ubtn);
+      });
     }
   } else {
     btn.style.display = 'none';
-    btnUp.style.display = 'none';
   }
 }
 
@@ -723,11 +734,12 @@ function applySplash(cx, cy, radius, towerType, excludeMonster) {
 
 function updateTowers() {
   for (const tower of state.towers) {
-    const type = CONFIG.towers[tower.typeIdx];
-    const eDmg = towerStat(tower, 'damage');
-    const eRange = towerStat(tower, 'range');
-    const eRate = towerStat(tower, 'fireRate');
-    if (eRange <= 0 || (eDmg <= 0 && !type.dot)) continue;
+    const baseType = CONFIG.towers[tower.typeIdx];
+    const node = getTowerNode(tower);
+    const eDmg = node.damage;
+    const eRange = node.range;
+    const eRate = node.fireRate;
+    if (eRange <= 0 || (eDmg <= 0 && !node.dot)) continue;
     if (state.frame - tower.lastFire < eRate) continue;
 
     const tSize = getTowerSize(tower.typeIdx, tower.rotation);
@@ -735,7 +747,7 @@ function updateTowers() {
     const tcy = tower.y + tSize.h / 2;
 
     // Facing direction for fixed towers
-    const isFixed = type.attackDir === 'fixed';
+    const isFixed = baseType.attackDir === 'fixed';
     const fdx = [0, 1, 0, -1][tower.rotation];
     const fdy = [-1, 0, 1, 0][tower.rotation];
 
@@ -748,7 +760,7 @@ function updateTowers() {
       else { ox = tower.x; oy = tower.y + tSize.h / 2; }
     }
 
-    if (type.pierce) {
+    if (node.pierce) {
       // Pierce corridor attack
       const dir = tower.rotation * 2; // 0=up, 2=right, 4=down, 6=left
       const corridorW = Math.max(tSize.w, tSize.h) === tSize.w ? tSize.h : tSize.w;
@@ -764,9 +776,9 @@ function updateTowers() {
         if (dir === 2 && Math.abs(ry) < corridorW && rx >= 0 && rx <= eRange) inCorridor = true;
         if (dir === 6 && Math.abs(ry) < corridorW && rx >= -eRange && rx <= 0) inCorridor = true;
         if (inCorridor) {
-          applyDamage(m, eDmg, type.damageType);
-          if (type.speedFactor && type.speedFactor !== 1) {
-            applySpeedMod(m, type.speedFactor, type.speedDuration);
+          applyDamage(m, eDmg, node.damageType);
+          if (node.speedFactor && node.speedFactor !== 1) {
+            applySpeedMod(m, node.speedFactor, node.speedDuration);
           }
           hit = true;
         }
@@ -775,9 +787,9 @@ function updateTowers() {
       tower.lastFire = state.frame;
       const ex = ox + DX[dir] * eRange;
       const ey = oy + DY[dir] * eRange;
-      state.effects.push({ x: ox, y: oy, tx: ex, ty: ey, ttl: 4, color: type.color, wide: true });
+      state.effects.push({ x: ox, y: oy, tx: ex, ty: ey, ttl: 4, color: node.color, wide: true });
 
-    } else if (type.dot) {
+    } else if (node.dot) {
       // DOT tower: prioritize monsters without DOT, then nearest in range
       let nearest = null;
       let nearDist = Infinity;
@@ -799,11 +811,11 @@ function updateTowers() {
       }
       if (!nearest) continue;
       tower.lastFire = state.frame;
-      nearest.dot = { dps: towerStat(tower, 'dotDps'), remaining: type.dot.duration, damageType: type.damageType || 'physical' };
-      if (type.speedFactor && type.speedFactor !== 1) {
-        applySpeedMod(nearest, type.speedFactor, type.speedDuration);
+      nearest.dot = { dps: node.dot.dps, remaining: node.dot.duration, damageType: node.damageType || 'physical' };
+      if (node.speedFactor && node.speedFactor !== 1) {
+        applySpeedMod(nearest, node.speedFactor, node.speedDuration);
       }
-      state.effects.push({ x: ox, y: oy, tx: nearest.x, ty: nearest.y, ttl: 4, color: type.color });
+      state.effects.push({ x: ox, y: oy, tx: nearest.x, ty: nearest.y, ttl: 4, color: node.color });
 
     } else {
       // Single-target (Melee / Range)
@@ -824,29 +836,29 @@ function updateTowers() {
       if (!nearest) continue;
       tower.lastFire = state.frame;
 
-      if (type.projectileSpeed > 0) {
+      if (node.projectileSpeed > 0) {
         const dx = nearest.x - ox;
         const dy = nearest.y - oy;
         const dist = Math.hypot(dx, dy) || 1;
         state.projectiles.push({
           x: ox, y: oy,
           tx: nearest.x, ty: nearest.y,
-          vx: (dx / dist) * type.projectileSpeed,
-          vy: (dy / dist) * type.projectileSpeed,
+          vx: (dx / dist) * node.projectileSpeed,
+          vy: (dy / dist) * node.projectileSpeed,
           damage: eDmg,
-          towerTypeIdx: tower.typeIdx,
-          color: type.color,
+          towerNode: node,
+          color: node.color,
         });
       } else {
-        const dmgType = type.damageType || 'physical';
+        const dmgType = node.damageType || 'physical';
         applyDamage(nearest, eDmg, dmgType);
-        if (type.speedFactor && type.speedFactor !== 1) {
-          applySpeedMod(nearest, type.speedFactor, type.speedDuration);
+        if (node.speedFactor && node.speedFactor !== 1) {
+          applySpeedMod(nearest, node.speedFactor, node.speedDuration);
         }
-        if (type.splashRadius > 0) {
-          applySplash(nearest.x, nearest.y, type.splashRadius, type, nearest);
+        if (node.splashRadius > 0) {
+          applySplash(nearest.x, nearest.y, node.splashRadius, node, nearest);
         }
-        state.effects.push({ x: ox, y: oy, tx: nearest.x, ty: nearest.y, ttl: 4, color: type.color });
+        state.effects.push({ x: ox, y: oy, tx: nearest.x, ty: nearest.y, ttl: 4, color: node.color });
       }
     }
   }
@@ -871,8 +883,8 @@ function updateProjectiles() {
       // Impact at target location
       p.x = p.tx;
       p.y = p.ty;
-      const type = CONFIG.towers[p.towerTypeIdx];
-      const dmgType = type.damageType || 'physical';
+      const tn = p.towerNode;
+      const dmgType = tn.damageType || 'physical';
       // Direct hit: damage the closest monster at impact point
       let hitMonster = null;
       let hitDist = 1.0; // max distance for direct hit
@@ -883,12 +895,12 @@ function updateProjectiles() {
       }
       if (hitMonster) {
         applyDamage(hitMonster, p.damage, dmgType);
-        if (type.speedFactor && type.speedFactor !== 1) {
-          applySpeedMod(hitMonster, type.speedFactor, type.speedDuration);
+        if (tn.speedFactor && tn.speedFactor !== 1) {
+          applySpeedMod(hitMonster, tn.speedFactor, tn.speedDuration);
         }
       }
-      if (type.splashRadius > 0) {
-        applySplash(p.x, p.y, type.splashRadius, type, hitMonster);
+      if (tn.splashRadius > 0) {
+        applySplash(p.x, p.y, tn.splashRadius, tn, hitMonster);
       }
       state.projectiles.splice(i, 1);
     }
@@ -1167,11 +1179,17 @@ function setupInput() {
       case ' ': case 'Enter': placeTower(); e.preventDefault(); break;
       case 'w': case 'W': startWave(); break;
       case 'x': case 'X': case 'Delete': sellTower(); break;
-      case 'u': case 'U': upgradeTower(); break;
       case 'Escape': state.selectedPlacedTower = null; updateSellButton(); break;
       default: {
         const n = parseInt(e.key);
-        if (n >= 1 && n <= CONFIG.towers.length) selectTowerType(n - 1);
+        if (n >= 1) {
+          if (state.selectedPlacedTower) {
+            const nd = getTowerNode(state.selectedPlacedTower);
+            if (nd.upgrades && n <= nd.upgrades.length) upgradeTower(n - 1);
+          } else if (n <= CONFIG.towers.length) {
+            selectTowerType(n - 1);
+          }
+        }
       }
     }
   });
@@ -1228,7 +1246,7 @@ function setupInput() {
   // UI buttons
   document.getElementById('btn-wave').addEventListener('click', startWave);
   document.getElementById('btn-sell').addEventListener('click', sellTower);
-  document.getElementById('btn-upgrade').addEventListener('click', upgradeTower);
+  // Upgrade buttons are created dynamically in updateSellButton()
   document.getElementById('btn-place').addEventListener('click', () => {
     state.cursor.visible = true;
     placeTower();
@@ -1427,7 +1445,8 @@ function drawGrid() {
 
 function drawTowers() {
   for (const tower of state.towers) {
-    const type = CONFIG.towers[tower.typeIdx];
+    const baseType = CONFIG.towers[tower.typeIdx];
+    const node = getTowerNode(tower);
     const size = getTowerSize(tower.typeIdx, tower.rotation);
     const px = tower.x * TILE_SIZE;
     const py = tower.y * TILE_SIZE;
@@ -1435,7 +1454,7 @@ function drawTowers() {
     const th = size.h * TILE_SIZE;
 
     // Background
-    ctx.fillStyle = type.bg;
+    ctx.fillStyle = node.bg;
     ctx.fillRect(px + 1, py + 1, tw - 2, th - 2);
 
     // HP bar
@@ -1451,13 +1470,13 @@ function drawTowers() {
     ctx.font = 'bold ' + (TILE_SIZE) + 'px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = type.color;
-    ctx.fillText(type.letter, px + tw / 2, py + th / 2);
+    ctx.fillStyle = node.color;
+    ctx.fillText(node.letter, px + tw / 2, py + th / 2);
 
     // Direction arrow for fixed-direction towers
-    if (type.attackDir === 'fixed') {
+    if (baseType.attackDir === 'fixed') {
       const as = TILE_SIZE * 0.3;
-      ctx.fillStyle = type.color;
+      ctx.fillStyle = node.color;
       ctx.beginPath();
       if (tower.rotation === 0) {
         ctx.moveTo(px + tw / 2, py + 2);
@@ -1477,29 +1496,6 @@ function drawTowers() {
         ctx.lineTo(px + 2 + as, py + th / 2 + as);
       }
       ctx.fill();
-    }
-
-    // Upgrade stars
-    const level = tower.level || 0;
-    if (level > 0) {
-      const starColors = ['', '#cd7f32', '#cd7f32', '#cd7f32', '#c0c0c0', '#ffd700'];
-      const starSizes = ['', 12, 12, 12, 15, 18];
-      const starColor = starColors[level];
-      const starSize = starSizes[level];
-      const starY = py + th - (tower.hp < tower.maxHp ? 8 : 3);
-      const starCount = level <= 3 ? level : 1;
-      const gap = starSize + 1;
-      const starW = starCount * gap;
-      const startX = px + tw / 2 - starW / 2 + gap / 2;
-      ctx.fillStyle = starColor;
-      ctx.font = starSize + 'px monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      for (let s = 0; s < starCount; s++) {
-        ctx.fillText('\u2605', startX + s * gap, starY);
-      }
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
     }
 
     // Selection highlight
@@ -1799,6 +1795,16 @@ function esc(s) { return s.replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
 // Track which detail view is open
 let settingsDetail = { type: null, index: -1 };
+let settingsTreePath = [];
+
+function getConfigNode(root, path) {
+  let node = root;
+  for (const idx of path) {
+    if (!node.upgrades || !node.upgrades[idx]) break;
+    node = node.upgrades[idx];
+  }
+  return node;
+}
 
 function openSettings() {
   document.getElementById('settings').style.display = 'flex';
@@ -1940,23 +1946,133 @@ function openDetail(type, index) {
   body.innerHTML = '';
 
   if (type === 'tower') {
-    title.textContent = 'Tower: ' + CONFIG.towers[index].name;
-    body.appendChild(createTowerFields(CONFIG.towers[index]));
+    settingsTreePath = [];
+    renderTowerTreeNode(index, []);
   } else {
     title.textContent = 'Monster: ' + CONFIG.monsters[index].name;
     body.appendChild(createMonsterFields(CONFIG.monsters[index]));
   }
 }
 
-function closeDetail() {
-  const { type, index } = settingsDetail;
+function saveTowerFormToNode() {
+  if (settingsDetail.type !== 'tower') return;
   const body = document.getElementById('settings-detail-body');
   const div = body.querySelector('.cfg-item');
-  if (div && type === 'tower') {
-    CONFIG.towers[index] = readTowerFromForm(div);
-  } else if (div && type === 'monster') {
-    CONFIG.monsters[index] = readMonsterFromForm(div);
+  if (!div) return;
+  const node = getConfigNode(CONFIG.towers[settingsDetail.index], settingsTreePath);
+  const formData = readTowerFromForm(div);
+  // Preserve upgrades array (not in form)
+  formData.upgrades = node.upgrades;
+  Object.assign(node, formData);
+}
+
+function renderTowerTreeNode(towerIdx, path) {
+  const title = document.getElementById('settings-detail-title');
+  const body = document.getElementById('settings-detail-body');
+  const root = CONFIG.towers[towerIdx];
+  const node = getConfigNode(root, path);
+
+  // Build title breadcrumb
+  let titleText = 'Tower: ' + root.name;
+  let cur = root;
+  for (const idx of path) {
+    cur = cur.upgrades[idx];
+    titleText += ' \u203a ' + cur.name;
   }
+  title.textContent = titleText;
+
+  body.innerHTML = '';
+  body.appendChild(createTowerFields(node, path.length === 0));
+
+  // Breadcrumb navigation
+  if (path.length > 0) {
+    const nav = document.createElement('div');
+    nav.className = 'tree-nav';
+    let crumbNode = root;
+    const crumb0 = document.createElement('span');
+    crumb0.className = 'tree-crumb';
+    crumb0.textContent = root.name;
+    crumb0.addEventListener('click', () => { saveTowerFormToNode(); settingsTreePath = []; renderTowerTreeNode(towerIdx, []); });
+    nav.appendChild(crumb0);
+    for (let d = 0; d < path.length; d++) {
+      nav.appendChild(document.createTextNode(' \u203a '));
+      crumbNode = crumbNode.upgrades[path[d]];
+      const span = document.createElement('span');
+      span.textContent = crumbNode.name;
+      if (d < path.length - 1) {
+        span.className = 'tree-crumb';
+        const targetPath = path.slice(0, d + 1);
+        span.addEventListener('click', () => { saveTowerFormToNode(); settingsTreePath = targetPath; renderTowerTreeNode(towerIdx, targetPath); });
+      } else {
+        span.className = 'tree-crumb current';
+      }
+      nav.appendChild(span);
+    }
+    body.insertBefore(nav, body.firstChild);
+  }
+
+  // Upgrade children section
+  const fieldset = document.createElement('fieldset');
+  fieldset.innerHTML = '<legend>Upgrades</legend>';
+  const childDiv = document.createElement('div');
+  childDiv.className = 'tree-children';
+  const upgrades = node.upgrades || [];
+  upgrades.forEach((upg, i) => {
+    const btn = document.createElement('button');
+    btn.textContent = upg.name;
+    btn.className = 'tree-child';
+    btn.addEventListener('click', () => {
+      saveTowerFormToNode();
+      settingsTreePath = path.concat(i);
+      renderTowerTreeNode(towerIdx, settingsTreePath);
+    });
+    childDiv.appendChild(btn);
+    const rm = document.createElement('button');
+    rm.textContent = '\u00d7';
+    rm.className = 'tree-child-rm';
+    rm.addEventListener('click', () => {
+      saveTowerFormToNode();
+      node.upgrades.splice(i, 1);
+      if (node.upgrades.length === 0) delete node.upgrades;
+      renderTowerTreeNode(towerIdx, path);
+    });
+    childDiv.appendChild(rm);
+  });
+  const addBtn = document.createElement('button');
+  addBtn.textContent = '+ Add';
+  addBtn.className = 'tree-child-add';
+  addBtn.addEventListener('click', () => {
+    saveTowerFormToNode();
+    if (!node.upgrades) node.upgrades = [];
+    const clone = { name: 'New', letter: node.letter, color: node.color, bg: node.bg,
+      range: node.range, damage: node.damage, fireRate: node.fireRate, cost: 10,
+      hp: node.hp, damageType: node.damageType || 'physical' };
+    if (node.pierce) clone.pierce = true;
+    if (node.dot) clone.dot = { dps: node.dot.dps, duration: node.dot.duration };
+    if (node.projectileSpeed) clone.projectileSpeed = node.projectileSpeed;
+    if (node.splashRadius) clone.splashRadius = node.splashRadius;
+    if (node.speedFactor && node.speedFactor !== 1) { clone.speedFactor = node.speedFactor; clone.speedDuration = node.speedDuration; }
+    node.upgrades.push(clone);
+    settingsTreePath = path.concat(node.upgrades.length - 1);
+    renderTowerTreeNode(towerIdx, settingsTreePath);
+  });
+  childDiv.appendChild(addBtn);
+  fieldset.appendChild(childDiv);
+  body.appendChild(fieldset);
+}
+
+function closeDetail() {
+  const { type, index } = settingsDetail;
+  if (type === 'tower') {
+    saveTowerFormToNode();
+  } else {
+    const body = document.getElementById('settings-detail-body');
+    const div = body.querySelector('.cfg-item');
+    if (div && type === 'monster') {
+      CONFIG.monsters[index] = readMonsterFromForm(div);
+    }
+  }
+  settingsTreePath = [];
   showSettingsList();
 }
 
@@ -1974,7 +2090,7 @@ function deleteDetailItem() {
   showSettingsList();
 }
 
-function createTowerFields(t) {
+function createTowerFields(t, isRoot) {
   const div = document.createElement('div');
   div.className = 'cfg-item';
   const dtVal = t.damageType || 'physical';
@@ -1983,7 +2099,7 @@ function createTowerFields(t) {
     dtOpts += '<option value="' + dt + '"' + (dt === dtVal ? ' selected' : '') + '>' + dt.charAt(0).toUpperCase() + dt.slice(1) + '</option>';
   }
   const adVal = t.attackDir || 'any';
-  div.innerHTML =
+  let html =
     '<fieldset><legend>Identity</legend>' +
       '<div class="cfg-row">' +
         '<label>Name <input type="text" class="tw-name" value="' + esc(t.name) + '"></label>' +
@@ -1991,30 +2107,34 @@ function createTowerFields(t) {
         '<label>Color <input type="color" class="tw-color" value="' + t.color + '"></label>' +
         '<label>BG <input type="color" class="tw-bg" value="' + t.bg + '"></label>' +
       '</div>' +
-    '</fieldset>' +
+    '</fieldset>';
+  if (isRoot) {
+    html +=
     '<fieldset><legend>Placement</legend>' +
       '<div class="cfg-row">' +
         '<label>W <input type="number" class="tw-sizeW" min="1" max="4" value="' + (t.sizeW || 2) + '"></label>' +
         '<label>H <input type="number" class="tw-sizeH" min="1" max="4" value="' + (t.sizeH || 2) + '"></label>' +
-        '<label>Cost <input type="number" class="tw-cost" min="0" value="' + t.cost + '"></label>' +
-        '<label>HP <input type="number" class="tw-hp" min="1" value="' + t.hp + '"></label>' +
         '<label>Attack dir <select class="tw-attackDir">' +
           '<option value="any"' + (adVal === 'any' ? ' selected' : '') + '>Any</option>' +
           '<option value="fixed"' + (adVal === 'fixed' ? ' selected' : '') + '>Fixed</option>' +
         '</select></label>' +
       '</div>' +
-    '</fieldset>' +
-    '<fieldset><legend>Combat</legend>' +
+    '</fieldset>';
+  }
+  html +=
+    '<fieldset><legend>Stats</legend>' +
       '<div class="cfg-row">' +
+        '<label>Cost <input type="number" class="tw-cost" min="0" value="' + t.cost + '"></label>' +
+        '<label>HP <input type="number" class="tw-hp" min="1" value="' + t.hp + '"></label>' +
         '<label>Range <input type="number" class="tw-range" min="0" value="' + t.range + '"></label>' +
+      '</div>' +
+      '<div class="cfg-row">' +
         '<label>Damage <input type="number" class="tw-damage" min="0" value="' + t.damage + '"></label>' +
         '<label>Fire Rate <input type="number" class="tw-fireRate" min="1" value="' + t.fireRate + '"></label>' +
-      '</div>' +
-      '<div class="cfg-row">' +
         '<label>Dmg Type <select class="tw-damageType">' + dtOpts + '</select></label>' +
-        '<label><input type="checkbox" class="tw-pierce"' + (t.pierce ? ' checked' : '') + '> Pierce</label>' +
       '</div>' +
       '<div class="cfg-row">' +
+        '<label><input type="checkbox" class="tw-pierce"' + (t.pierce ? ' checked' : '') + '> Pierce</label>' +
         '<label>Splash Radius <input type="number" class="tw-splashRadius" min="0" step="0.5" value="' + (t.splashRadius || 0) + '"></label>' +
         '<label>Projectile Spd <input type="number" class="tw-projectileSpeed" min="0" step="0.01" value="' + (t.projectileSpeed || 0) + '"></label>' +
       '</div>' +
@@ -2031,15 +2151,8 @@ function createTowerFields(t) {
         '<label>Slow Factor <input type="number" class="tw-speedFactor" min="0" step="0.1" value="' + (t.speedFactor || 1) + '"></label>' +
         '<label>Slow Dur <input type="number" class="tw-speedDuration" min="1" value="' + (t.speedDuration || 60) + '"></label>' +
       '</div>' +
-    '</fieldset>' +
-    '<fieldset><legend>Upgrades</legend>' +
-      '<div class="cfg-row">' +
-        '<label>Cost <input type="number" class="tw-upgradeCost" min="0" value="' + (t.upgradeCost || 10) + '"></label>' +
-        '<label>Dmg +<input type="number" class="tw-upgradeDmg" min="0" value="' + (t.upgradeDmg || 0) + '">%</label>' +
-        '<label>Range +<input type="number" class="tw-upgradeRange" min="0" value="' + (t.upgradeRange || 0) + '">%</label>' +
-        '<label>Rate +<input type="number" class="tw-upgradeRate" min="0" value="' + (t.upgradeRate || 0) + '">%</label>' +
-      '</div>' +
     '</fieldset>';
+  div.innerHTML = html;
   div.querySelector('.tw-hasDot').addEventListener('change', function() {
     div.querySelector('.cfg-dot-fields').style.display = this.checked ? '' : 'none';
   });
@@ -2107,13 +2220,13 @@ function readTowerFromForm(div) {
   if (sr > 0) t.splashRadius = sr;
   const ps = +div.querySelector('.tw-projectileSpeed').value;
   if (ps > 0) t.projectileSpeed = ps;
-  t.sizeW = +div.querySelector('.tw-sizeW').value || 2;
-  t.sizeH = +div.querySelector('.tw-sizeH').value || 2;
-  if (div.querySelector('.tw-attackDir').value === 'fixed') t.attackDir = 'fixed';
-  t.upgradeCost = +div.querySelector('.tw-upgradeCost').value || 10;
-  t.upgradeDmg = +div.querySelector('.tw-upgradeDmg').value || 0;
-  t.upgradeRange = +div.querySelector('.tw-upgradeRange').value || 0;
-  t.upgradeRate = +div.querySelector('.tw-upgradeRate').value || 0;
+  // Placement fields only present at root
+  const sizeW = div.querySelector('.tw-sizeW');
+  if (sizeW) t.sizeW = +sizeW.value || 2;
+  const sizeH = div.querySelector('.tw-sizeH');
+  if (sizeH) t.sizeH = +sizeH.value || 2;
+  const attackDir = div.querySelector('.tw-attackDir');
+  if (attackDir && attackDir.value === 'fixed') t.attackDir = 'fixed';
   return t;
 }
 
@@ -2162,7 +2275,7 @@ function readSettings() {
 
 function addTowerType() {
   readSettings();
-  CONFIG.towers.push({ name: 'New', letter: 'X', color: '#ffffff', bg: '#444444', range: 2, damage: 1, fireRate: 30, cost: 10, hp: 5, damageType: 'physical', sizeW: 2, sizeH: 2, upgradeCost: 10, upgradeDmg: 25, upgradeRange: 15, upgradeRate: 10 });
+  CONFIG.towers.push({ name: 'New', letter: 'X', color: '#ffffff', bg: '#444444', range: 2, damage: 1, fireRate: 30, cost: 10, hp: 5, damageType: 'physical', sizeW: 2, sizeH: 2 });
   openDetail('tower', CONFIG.towers.length - 1);
 }
 
