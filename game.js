@@ -1409,8 +1409,11 @@ function toggleBestiary() {
   title.textContent = 'Bestiary';
   box.appendChild(title);
   const waveNum = Math.max(1, state.wave || 1);
+  const nextWave = state.phase === 'PLACE' ? waveNum + 1 : waveNum;
   const hpMult = 1 + (waveNum - 1) * (CONFIG.waves.hpScale || 0) / 100;
   CONFIG.monsters.forEach((m, i) => {
+    const unlock = (CONFIG.waves.unlockWave[i] || 1);
+    if (nextWave < unlock) return;
     const row = document.createElement('div');
     row.className = 'bestiary-row';
     const icon = document.createElement('span');
