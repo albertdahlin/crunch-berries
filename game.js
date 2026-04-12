@@ -25,6 +25,7 @@ const DEFAULT_CONFIG = {
         { name: 'Crossbow', letter: 'X', color: '#ffee58', bg: '#f57f17', range: 4, damage: 6, fireRate: 50, cost: 30, hp: 6, damageType: 'physical', projectileSpeed: 0.2 },
         { name: 'Longbow', letter: 'L', color: '#fff9c4', bg: '#f57f17', range: 6, damage: 2, fireRate: 18, cost: 20, hp: 5, damageType: 'physical', projectileSpeed: 0.18 },
       ]},
+      { name: 'Thief', letter: 'T', color: '#a5d6a7', bg: '#2e7d32', range: 1, damage: 2, fireRate: 10, cost: 20, hp: 8, damageType: 'physical', goldSteal: 3 },
     ]},
     { name: 'Range', letter: 'R', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 5, damageType: 'physical' },
     { name: 'DOT', letter: 'D', color: '#81c784', bg: '#2e7d32', range: 1, damage: 0, fireRate: 30, cost: 20, hp: 8, damageType: 'fire', dot: { dps: 1, duration: 90 } },
@@ -706,7 +707,16 @@ function getDamageModifier(monster, damageType) {
 
 function applyDamage(monster, baseDamage, damageType) {
   const mod = getDamageModifier(monster, damageType || 'physical');
+  const wasAlive = monster.hp > 0;
   monster.hp -= baseDamage * mod;
+  return wasAlive && monster.hp <= 0;
+}
+
+function applyStealGold(node) {
+  if (node.goldSteal > 0) {
+    state.gold += node.goldSteal;
+    state.score += node.goldSteal;
+  }
 }
 
 function applySpeedMod(monster, factor, duration) {
@@ -720,7 +730,7 @@ function applySplash(cx, cy, radius, towerType, excludeMonster) {
     if (m.hp <= 0 || m === excludeMonster) continue;
     const d = Math.hypot(m.x - cx, m.y - cy);
     if (d <= radius) {
-      applyDamage(m, towerType.damage, dmgType);
+      if (applyDamage(m, towerType.damage, dmgType)) applyStealGold(towerType);
       if (towerType.speedFactor && towerType.speedFactor !== 1) {
         applySpeedMod(m, towerType.speedFactor, towerType.speedDuration);
       }
@@ -776,7 +786,7 @@ function updateTowers() {
         if (dir === 2 && Math.abs(ry) < corridorW && rx >= 0 && rx <= eRange) inCorridor = true;
         if (dir === 6 && Math.abs(ry) < corridorW && rx >= -eRange && rx <= 0) inCorridor = true;
         if (inCorridor) {
-          applyDamage(m, eDmg, node.damageType);
+          if (applyDamage(m, eDmg, node.damageType)) applyStealGold(node);
           if (node.speedFactor && node.speedFactor !== 1) {
             applySpeedMod(m, node.speedFactor, node.speedDuration);
           }
@@ -851,7 +861,7 @@ function updateTowers() {
         });
       } else {
         const dmgType = node.damageType || 'physical';
-        applyDamage(nearest, eDmg, dmgType);
+        if (applyDamage(nearest, eDmg, dmgType)) applyStealGold(node);
         if (node.speedFactor && node.speedFactor !== 1) {
           applySpeedMod(nearest, node.speedFactor, node.speedDuration);
         }
@@ -894,7 +904,7 @@ function updateProjectiles() {
         if (d < hitDist) { hitDist = d; hitMonster = m; }
       }
       if (hitMonster) {
-        applyDamage(hitMonster, p.damage, dmgType);
+        if (applyDamage(hitMonster, p.damage, dmgType)) applyStealGold(tn);
         if (tn.speedFactor && tn.speedFactor !== 1) {
           applySpeedMod(hitMonster, tn.speedFactor, tn.speedDuration);
         }
@@ -2154,6 +2164,9 @@ function createTowerFields(t, isRoot) {
         '<label>Slow Factor <input type="number" class="tw-speedFactor" min="0" step="0.1" value="' + (t.speedFactor || 1) + '"></label>' +
         '<label>Slow Dur <input type="number" class="tw-speedDuration" min="1" value="' + (t.speedDuration || 60) + '"></label>' +
       '</div>' +
+      '<div class="cfg-row">' +
+        '<label>Gold Steal <input type="number" class="tw-goldSteal" min="0" value="' + (t.goldSteal || 0) + '"></label>' +
+      '</div>' +
     '</fieldset>';
   div.innerHTML = html;
   div.querySelector('.tw-hasDot').addEventListener('change', function() {
@@ -2223,6 +2236,8 @@ function readTowerFromForm(div) {
   t.splashRadius = sr > 0 ? sr : 0;
   const ps = +div.querySelector('.tw-projectileSpeed').value;
   t.projectileSpeed = ps > 0 ? ps : 0;
+  const gs = +div.querySelector('.tw-goldSteal').value;
+  if (gs > 0) t.goldSteal = gs;
   // Placement fields only present at root
   const sizeW = div.querySelector('.tw-sizeW');
   if (sizeW) t.sizeW = +sizeW.value || 2;
