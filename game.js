@@ -278,6 +278,7 @@ function startGameWithGround() {
   state.selectedPlacedTower = null;
   recomputePath();
   rebuildTowerButtons();
+  showTowerPreview(CONFIG.towers[state.selectedTower]);
   state.phase = 'PLACE';
   hideMapSelect();
   document.getElementById('hud').style.display = 'flex';
@@ -741,9 +742,11 @@ function updateSellButton() {
     }
   } else {
     btn.style.display = 'none';
-    descEl.style.display = 'none';
-    statsEl.style.display = 'none';
-    document.getElementById('tower-info').style.display = 'none';
+    if (state.selectedTower >= 0 && state.selectedTower < CONFIG.towers.length) {
+      showTowerPreview(CONFIG.towers[state.selectedTower]);
+    } else {
+      document.getElementById('tower-info').style.display = 'none';
+    }
   }
   const rotBtn = document.getElementById('btn-rotate');
   if (rotBtn) {
@@ -2676,8 +2679,6 @@ function rebuildTowerButtons() {
     btn.textContent = (i + 1) + ': ' + t.name + ' (' + t.cost + 'g)';
     if (i === state.selectedTower) btn.classList.add('selected');
     btn.addEventListener('click', () => selectTowerType(i));
-    btn.addEventListener('mouseenter', () => showTowerPreview(t));
-    btn.addEventListener('mouseleave', () => hideTowerPreview());
     container.appendChild(btn);
   });
 }
