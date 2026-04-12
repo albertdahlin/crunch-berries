@@ -1983,20 +1983,21 @@ function createListItem(color, letter, name, onClick) {
 function populateWaveFields() {
   const wavesDiv = document.getElementById('settings-wave-monsters');
   wavesDiv.innerHTML = '';
+  var H = helpBtn;
   CONFIG.monsters.forEach((m, i) => {
     const div = document.createElement('div');
     div.className = 'cfg-row';
     div.innerHTML =
       '<span style="color:' + m.color + '">' + esc(m.name) + '</span>' +
-      '<label>Count <input type="number" class="wv-base" min="0" value="' + (CONFIG.waves.baseCounts[i] || 0) + '"></label>' +
-      '<label>Unlock wave <input type="number" class="wv-unlock" min="1" value="' + (CONFIG.waves.unlockWave[i] || 1) + '"></label>';
+      '<label>Count ' + H('Base spawns per wave. Doubled every N waves') + ' <input type="number" class="wv-base" min="0" value="' + (CONFIG.waves.baseCounts[i] || 0) + '"></label>' +
+      '<label>Unlock ' + H('First wave this monster appears') + ' <input type="number" class="wv-unlock" min="1" value="' + (CONFIG.waves.unlockWave[i] || 1) + '"></label>';
     wavesDiv.appendChild(div);
   });
   document.getElementById('cfg-scaleEvery').value = CONFIG.waves.scaleEvery;
   document.getElementById('cfg-hpScale').value = CONFIG.waves.hpScale ?? 20;
-  document.getElementById('cfg-intervalStart').value = CONFIG.waves.intervalStart;
-  document.getElementById('cfg-intervalDecay').value = CONFIG.waves.intervalDecay;
-  document.getElementById('cfg-intervalMin').value = CONFIG.waves.intervalMin;
+  document.getElementById('cfg-intervalStart').value = framesToSec(CONFIG.waves.intervalStart);
+  document.getElementById('cfg-intervalDecay').value = framesToSec(CONFIG.waves.intervalDecay);
+  document.getElementById('cfg-intervalMin').value = framesToSec(CONFIG.waves.intervalMin);
 }
 
 // === SETTINGS DETAIL VIEW ===
@@ -2164,18 +2165,47 @@ function deleteDetailItem() {
   showSettingsList();
 }
 
+function helpBtn(text) {
+  return '<span class="cfg-help" data-help="' + esc(text) + '">?</span>';
+}
+
+function showHelpOverlay(text) {
+  const ov = document.createElement('div');
+  ov.className = 'help-overlay';
+  const box = document.createElement('div');
+  box.className = 'help-overlay-text';
+  box.textContent = text;
+  ov.appendChild(box);
+  ov.addEventListener('click', function() { ov.remove(); });
+  document.body.appendChild(ov);
+}
+
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('cfg-help')) {
+    showHelpOverlay(e.target.getAttribute('data-help'));
+  }
+});
+
+function framesToSec(f) { return +(f / FPS).toFixed(2); }
+function secToFrames(s) { return Math.round(s * FPS); }
+
 function createTowerFields(t, isRoot, parent) {
   const div = document.createElement('div');
   div.className = 'cfg-item';
+  var H = helpBtn;
   // Helper: value="X" if explicit on node, placeholder="X" (parent val) if inherited
-  function fv(key, fallback) {
+  // Optional xform converts internal value for display
+  function fv(key, fallback, xform) {
+    var fn = xform || function(x) { return x; };
     if (!parent || t.hasOwnProperty(key)) {
-      var v = t[key] !== undefined ? t[key] : fallback;
+      var v = t[key] !== undefined ? fn(t[key]) : fn(fallback);
       return 'value="' + esc(String(v)) + '"';
     }
-    var p = parent[key] !== undefined ? parent[key] : fallback;
+    var p = parent[key] !== undefined ? fn(parent[key]) : fn(fallback);
     return 'placeholder="' + esc(String(p)) + '"';
   }
+  var toSec = framesToSec;
+  var toTps = function(v) { return +(v * FPS).toFixed(1); };
   // Effective values for fields that can't be empty
   const effectiveColor = t.color || (parent ? parent.color : '#ffffff');
   const effectiveBg = t.bg || (parent ? parent.bg : '#000000');
@@ -2183,7 +2213,7 @@ function createTowerFields(t, isRoot, parent) {
   const effectiveDot = t.hasOwnProperty('dot') ? t.dot : (parent ? parent.dot : null);
   const hasDot = effectiveDot && effectiveDot !== false;
   const dotDps = hasDot ? effectiveDot.dps : 1;
-  const dotDur = hasDot ? effectiveDot.duration : 90;
+  const dotDur = hasDot ? framesToSec(effectiveDot.duration) : 3;
   // Damage type select
   const dtVal = t.hasOwnProperty('damageType') ? t.damageType : (parent ? '' : 'physical');
   let dtOpts = '';
@@ -2198,19 +2228,19 @@ function createTowerFields(t, isRoot, parent) {
   let html =
     '<fieldset><legend>Identity</legend>' +
       '<div class="cfg-row">' +
-        '<label>Name <input type="text" class="tw-name" ' + fv('name', '') + '></label>' +
-        '<label>Letter <input type="text" class="tw-letter" maxlength="1" ' + fv('letter', '?') + '></label>' +
-        '<label>Color <input type="color" class="tw-color" value="' + effectiveColor + '"></label>' +
-        '<label>BG <input type="color" class="tw-bg" value="' + effectiveBg + '"></label>' +
+        '<label>Name ' + H('Display name shown in UI') + ' <input type="text" class="tw-name" ' + fv('name', '') + '></label>' +
+        '<label>Letter ' + H('Single character drawn on the tower') + ' <input type="text" class="tw-letter" maxlength="1" ' + fv('letter', '?') + '></label>' +
+        '<label>Color ' + H('Text and letter color') + ' <input type="color" class="tw-color" value="' + effectiveColor + '"></label>' +
+        '<label>BG ' + H('Background fill color') + ' <input type="color" class="tw-bg" value="' + effectiveBg + '"></label>' +
       '</div>' +
     '</fieldset>';
   if (isRoot) {
     html +=
     '<fieldset><legend>Placement</legend>' +
       '<div class="cfg-row">' +
-        '<label>W <input type="number" class="tw-sizeW" min="1" max="4" value="' + (t.sizeW || 2) + '"></label>' +
-        '<label>H <input type="number" class="tw-sizeH" min="1" max="4" value="' + (t.sizeH || 2) + '"></label>' +
-        '<label>Attack dir <select class="tw-attackDir">' +
+        '<label>W ' + H('Tower width in tiles') + ' <input type="number" class="tw-sizeW" min="1" max="4" value="' + (t.sizeW || 2) + '"></label>' +
+        '<label>H ' + H('Tower height in tiles') + ' <input type="number" class="tw-sizeH" min="1" max="4" value="' + (t.sizeH || 2) + '"></label>' +
+        '<label>Attack dir ' + H('Any: targets nearest in range. Fixed: attacks only in facing direction, can be rotated') + ' <select class="tw-attackDir">' +
           '<option value="any"' + (adVal === 'any' ? ' selected' : '') + '>Any</option>' +
           '<option value="fixed"' + (adVal === 'fixed' ? ' selected' : '') + '>Fixed</option>' +
         '</select></label>' +
@@ -2220,35 +2250,35 @@ function createTowerFields(t, isRoot, parent) {
   html +=
     '<fieldset><legend>Stats</legend>' +
       '<div class="cfg-row">' +
-        '<label>Cost <input type="number" class="tw-cost" min="0" ' + fv('cost', 0) + '></label>' +
-        '<label>HP <input type="number" class="tw-hp" min="1" ' + fv('hp', 1) + '></label>' +
-        '<label>Range <input type="number" class="tw-range" min="0" ' + fv('range', 0) + '></label>' +
+        '<label>Cost ' + H('Gold cost to place or upgrade to this tower') + ' <input type="number" class="tw-cost" min="0" ' + fv('cost', 0) + '></label>' +
+        '<label>HP ' + H('Hit points. Monsters attack towers when their path is blocked') + ' <input type="number" class="tw-hp" min="1" ' + fv('hp', 1) + '></label>' +
+        '<label>Range ' + H('Attack reach in tiles from tower edge. 0 = no attack') + ' <input type="number" class="tw-range" min="0" ' + fv('range', 0) + '></label>' +
       '</div>' +
       '<div class="cfg-row">' +
-        '<label>Damage <input type="number" class="tw-damage" min="0" ' + fv('damage', 0) + '></label>' +
-        '<label>Fire Rate <input type="number" class="tw-fireRate" min="1" ' + fv('fireRate', 1) + '></label>' +
-        '<label>Dmg Type <select class="tw-damageType">' + dtOpts + '</select></label>' +
+        '<label>Damage ' + H('Damage dealt per hit before modifiers') + ' <input type="number" class="tw-damage" min="0" ' + fv('damage', 0) + '></label>' +
+        '<label>Cooldown ' + H('Seconds between attacks. Lower = faster') + ' <input type="number" class="tw-fireRate" min="0.03" step="0.1" ' + fv('fireRate', 1, toSec) + '>s</label>' +
+        '<label>Dmg Type ' + H('Damage element. Monsters can resist or be weak to specific types') + ' <select class="tw-damageType">' + dtOpts + '</select></label>' +
       '</div>' +
       '<div class="cfg-row">' +
-        '<label><input type="checkbox" class="tw-pierce"' + (effectivePierce ? ' checked' : '') + '> Pierce</label>' +
-        '<label>Splash Radius <input type="number" class="tw-splashRadius" min="0" step="0.5" ' + fv('splashRadius', 0) + '></label>' +
-        '<label>Projectile Spd <input type="number" class="tw-projectileSpeed" min="0" step="0.01" ' + fv('projectileSpeed', 0) + '></label>' +
+        '<label><input type="checkbox" class="tw-pierce"' + (effectivePierce ? ' checked' : '') + '> Pierce ' + H('Attacks all enemies in a line instead of one target') + '</label>' +
+        '<label>Splash ' + H('Area damage radius around the target in tiles') + ' <input type="number" class="tw-splashRadius" min="0" step="0.5" ' + fv('splashRadius', 0) + '></label>' +
+        '<label>Proj Spd ' + H('Projectile travel speed in tiles/sec. 0 = instant hit') + ' <input type="number" class="tw-projectileSpeed" min="0" step="0.5" ' + fv('projectileSpeed', 0, toTps) + '></label>' +
       '</div>' +
     '</fieldset>' +
     '<fieldset><legend>Effects</legend>' +
       '<div class="cfg-row">' +
-        '<label><input type="checkbox" class="tw-hasDot"' + (hasDot ? ' checked' : '') + '> DOT</label>' +
+        '<label><input type="checkbox" class="tw-hasDot"' + (hasDot ? ' checked' : '') + '> DOT ' + H('Applies damage over time to hit targets') + '</label>' +
       '</div>' +
       '<div class="cfg-row cfg-dot-fields"' + (hasDot ? '' : ' style="display:none"') + '>' +
-        '<label>DPS <input type="number" class="tw-dotDps" min="0" step="0.1" value="' + dotDps + '"></label>' +
-        '<label>Duration <input type="number" class="tw-dotDur" min="1" value="' + dotDur + '"></label>' +
+        '<label>DPS ' + H('Damage dealt per second while DOT is active') + ' <input type="number" class="tw-dotDps" min="0" step="0.1" value="' + dotDps + '"></label>' +
+        '<label>Duration ' + H('How long DOT lasts in seconds') + ' <input type="number" class="tw-dotDur" min="0.1" step="0.1" value="' + dotDur + '">s</label>' +
       '</div>' +
       '<div class="cfg-row">' +
-        '<label>Slow Factor <input type="number" class="tw-speedFactor" min="0" step="0.1" ' + fv('speedFactor', 1) + '></label>' +
-        '<label>Slow Dur <input type="number" class="tw-speedDuration" min="1" ' + fv('speedDuration', 60) + '></label>' +
+        '<label>Slow Factor ' + H('Speed multiplier on hit. 0.5 = half speed, 1 = no slow') + ' <input type="number" class="tw-speedFactor" min="0" step="0.1" ' + fv('speedFactor', 1) + '></label>' +
+        '<label>Slow Dur ' + H('How long slow lasts in seconds') + ' <input type="number" class="tw-speedDuration" min="0.1" step="0.1" ' + fv('speedDuration', 60, toSec) + '>s</label>' +
       '</div>' +
       '<div class="cfg-row">' +
-        '<label>Gold Steal <input type="number" class="tw-goldSteal" min="0" ' + fv('goldSteal', 0) + '></label>' +
+        '<label>Gold Steal ' + H('Bonus gold earned on killing blow') + ' <input type="number" class="tw-goldSteal" min="0" ' + fv('goldSteal', 0) + '></label>' +
       '</div>' +
     '</fieldset>';
   div.innerHTML = html;
@@ -2261,6 +2291,7 @@ function createTowerFields(t, isRoot, parent) {
 function createMonsterFields(m) {
   const div = document.createElement('div');
   div.className = 'cfg-item';
+  var H = helpBtn;
   let modInputs = '';
   const mods = m.damageModifiers || {};
   for (const dt of DAMAGE_TYPES) {
@@ -2271,19 +2302,19 @@ function createMonsterFields(m) {
   div.innerHTML =
     '<fieldset><legend>Identity</legend>' +
       '<div class="cfg-row">' +
-        '<label>Name <input type="text" class="mo-name" value="' + esc(m.name) + '"></label>' +
-        '<label>Letter <input type="text" class="mo-letter" maxlength="1" value="' + esc(m.letter) + '"></label>' +
-        '<label>Color <input type="color" class="mo-color" value="' + m.color + '"></label>' +
+        '<label>Name ' + H('Display name') + ' <input type="text" class="mo-name" value="' + esc(m.name) + '"></label>' +
+        '<label>Letter ' + H('Character drawn on the monster') + ' <input type="text" class="mo-letter" maxlength="1" value="' + esc(m.letter) + '"></label>' +
+        '<label>Color ' + H('Monster color') + ' <input type="color" class="mo-color" value="' + m.color + '"></label>' +
       '</div>' +
     '</fieldset>' +
     '<fieldset><legend>Stats</legend>' +
       '<div class="cfg-row">' +
-        '<label>HP <input type="number" class="mo-hp" min="1" value="' + m.hp + '"></label>' +
-        '<label>Speed <input type="number" class="mo-speed" min="0.01" step="0.01" value="' + m.speed + '"></label>' +
-        '<label>Reward <input type="number" class="mo-reward" min="0" value="' + m.reward + '"></label>' +
+        '<label>HP ' + H('Base hit points. Scaled each wave by HP% setting') + ' <input type="number" class="mo-hp" min="1" value="' + m.hp + '"></label>' +
+        '<label>Speed ' + H('Movement speed in tiles per second') + ' <input type="number" class="mo-speed" min="0.1" step="0.1" value="' + +(m.speed * FPS).toFixed(1) + '"></label>' +
+        '<label>Reward ' + H('Gold earned on kill') + ' <input type="number" class="mo-reward" min="0" value="' + m.reward + '"></label>' +
       '</div>' +
     '</fieldset>' +
-    '<fieldset><legend>Damage Modifiers</legend>' +
+    '<fieldset><legend>Damage Modifiers ' + H('Multiplier for each damage type. 2 = double damage, 0.5 = half, 1 = normal') + '</legend>' +
       '<div class="cfg-row">' + modInputs + '</div>' +
     '</fieldset>';
   return div;
@@ -2313,7 +2344,7 @@ function readTowerFromForm(div, parent) {
   v = num('.tw-hp'); if (v !== undefined) t.hp = v || 1;
   v = num('.tw-range'); if (v !== undefined) t.range = v;
   v = num('.tw-damage'); if (v !== undefined) t.damage = v;
-  v = num('.tw-fireRate'); if (v !== undefined) t.fireRate = v || 1;
+  v = num('.tw-fireRate'); if (v !== undefined) t.fireRate = secToFrames(v) || 1;
   // Pierce — compare with parent to detect change
   const pierceChecked = div.querySelector('.tw-pierce').checked;
   if (isChild) {
@@ -2327,14 +2358,14 @@ function readTowerFromForm(div, parent) {
     const parentHasDot = !!(parent.dot && parent.dot !== false);
     if (hasDot !== parentHasDot) {
       if (hasDot) {
-        t.dot = { dps: +div.querySelector('.tw-dotDps').value || 1, duration: +div.querySelector('.tw-dotDur').value || 90 };
+        t.dot = { dps: +div.querySelector('.tw-dotDps').value || 1, duration: secToFrames(+div.querySelector('.tw-dotDur').value || 3) };
       } else {
         t.dot = false;
       }
     }
   } else {
     if (hasDot) {
-      t.dot = { dps: +div.querySelector('.tw-dotDps').value || 1, duration: +div.querySelector('.tw-dotDur').value || 90 };
+      t.dot = { dps: +div.querySelector('.tw-dotDps').value || 1, duration: secToFrames(+div.querySelector('.tw-dotDur').value || 3) };
     }
   }
   // Damage type — empty = inherit
@@ -2349,16 +2380,16 @@ function readTowerFromForm(div, parent) {
   }
   const sd = num('.tw-speedDuration');
   if (isChild) {
-    if (sd !== undefined) t.speedDuration = sd;
+    if (sd !== undefined) t.speedDuration = secToFrames(sd);
   } else {
-    if (sd && sd !== 60) t.speedDuration = sd;
+    if (sd && sd !== 2) t.speedDuration = secToFrames(sd);
   }
   // Splash, projectile — empty = inherit
   v = num('.tw-splashRadius');
   if (v !== undefined) t.splashRadius = v > 0 ? v : 0;
   else if (!isChild) t.splashRadius = 0;
   v = num('.tw-projectileSpeed');
-  if (v !== undefined) t.projectileSpeed = v > 0 ? v : 0;
+  if (v !== undefined) t.projectileSpeed = v > 0 ? +(v / FPS).toFixed(4) : 0;
   else if (!isChild) t.projectileSpeed = 0;
   // Gold steal — empty = inherit
   v = num('.tw-goldSteal');
@@ -2380,7 +2411,7 @@ function readMonsterFromForm(div) {
     letter: div.querySelector('.mo-letter').value || '?',
     color: div.querySelector('.mo-color').value,
     hp: +div.querySelector('.mo-hp').value || 1,
-    speed: +div.querySelector('.mo-speed').value || 0.05,
+    speed: (+div.querySelector('.mo-speed').value || 1.5) / FPS,
     reward: +div.querySelector('.mo-reward').value || 1,
   };
   const mods = {};
@@ -2406,9 +2437,9 @@ function readSettings() {
   CONFIG.waves.unlockWave = Array.from(baseDivs).map(d => +d.querySelector('.wv-unlock').value || 1);
   CONFIG.waves.scaleEvery = +document.getElementById('cfg-scaleEvery').value || 2;
   CONFIG.waves.hpScale = +document.getElementById('cfg-hpScale').value || 0;
-  CONFIG.waves.intervalStart = +document.getElementById('cfg-intervalStart').value || 40;
-  CONFIG.waves.intervalDecay = +document.getElementById('cfg-intervalDecay').value || 3;
-  CONFIG.waves.intervalMin = +document.getElementById('cfg-intervalMin').value || 10;
+  CONFIG.waves.intervalStart = secToFrames(+document.getElementById('cfg-intervalStart').value || 1.33);
+  CONFIG.waves.intervalDecay = secToFrames(+document.getElementById('cfg-intervalDecay').value || 0.1);
+  CONFIG.waves.intervalMin = secToFrames(+document.getElementById('cfg-intervalMin').value || 0.33);
 
   // Read game
   CONFIG.game.startGold = +document.getElementById('cfg-startGold').value || 50;
