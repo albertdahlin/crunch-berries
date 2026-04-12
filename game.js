@@ -1838,12 +1838,12 @@ function resetSettings() {
 
 function exportData() {
   readSettings();
-  const data = JSON.stringify({ config: CONFIG, maps: savedMaps }, null, 2);
+  const data = JSON.stringify({ config: CONFIG }, null, 2);
   const blob = new Blob([data], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'tower-defence-data.json';
+  a.download = 'tower-defence-config.json';
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -1862,13 +1862,54 @@ function importData() {
         if (data.config && data.config.towers && data.config.monsters && data.config.waves && data.config.game) {
           CONFIG = data.config;
           localStorage.setItem('td-config', JSON.stringify(CONFIG));
+          showSettingsList();
+          showMessage('Config imported!');
+        } else {
+          showMessage('Invalid config file');
         }
-        if (Array.isArray(data.maps)) {
-          savedMaps = data.maps;
+      } catch(e) {
+        showMessage('Invalid file');
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
+
+function exportMap() {
+  const nameInput = document.getElementById('editor-map-name');
+  const name = (nameInput.value || '').trim() || 'My Map';
+  const data = groundToMapData();
+  const map = { name: name, data: data, cols: COLS, rows: ROWS };
+  const json = JSON.stringify(map, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name.replace(/[^a-zA-Z0-9_-]/g, '_') + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importMap() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.addEventListener('change', () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const map = JSON.parse(reader.result);
+        if (map.data && map.cols > 0 && map.rows > 0) {
+          savedMaps.push({ name: map.name || 'Imported', data: map.data, cols: map.cols, rows: map.rows });
           saveMapsToStorage();
+          openMapEditor(savedMaps.length - 1);
+          showMessage('Map imported!');
+        } else {
+          showMessage('Invalid map file');
         }
-        showSettingsList();
-        showMessage('Imported!');
       } catch(e) {
         showMessage('Invalid file');
       }
