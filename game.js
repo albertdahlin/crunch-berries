@@ -2014,29 +2014,32 @@ function renderTowerTreeNode(towerIdx, path) {
   // Upgrade children section
   const fieldset = document.createElement('fieldset');
   fieldset.innerHTML = '<legend>Upgrades</legend>';
-  const childDiv = document.createElement('div');
-  childDiv.className = 'tree-children';
+  const listDiv = document.createElement('div');
+  listDiv.className = 'tree-upgrade-list';
   const upgrades = node.upgrades || [];
   upgrades.forEach((upg, i) => {
-    const btn = document.createElement('button');
-    btn.textContent = upg.name;
-    btn.className = 'tree-child';
-    btn.addEventListener('click', () => {
-      saveTowerFormToNode();
-      settingsTreePath = path.concat(i);
-      renderTowerTreeNode(towerIdx, settingsTreePath);
-    });
-    childDiv.appendChild(btn);
+    const row = document.createElement('div');
+    row.className = 'cfg-list-item';
+    row.innerHTML =
+      '<div class="cfg-swatch" style="background:' + (upg.bg || upg.color) + '">' + esc(upg.letter) + '</div>' +
+      '<span class="cfg-list-name">' + esc(upg.name) + ' <span style="color:#888;font-size:11px">(' + upg.cost + 'g)</span></span>';
     const rm = document.createElement('button');
     rm.textContent = '\u00d7';
     rm.className = 'tree-child-rm';
-    rm.addEventListener('click', () => {
+    rm.addEventListener('click', (e) => {
+      e.stopPropagation();
       saveTowerFormToNode();
       node.upgrades.splice(i, 1);
       if (node.upgrades.length === 0) delete node.upgrades;
       renderTowerTreeNode(towerIdx, path);
     });
-    childDiv.appendChild(rm);
+    row.appendChild(rm);
+    row.addEventListener('click', () => {
+      saveTowerFormToNode();
+      settingsTreePath = path.concat(i);
+      renderTowerTreeNode(towerIdx, settingsTreePath);
+    });
+    listDiv.appendChild(row);
   });
   const addBtn = document.createElement('button');
   addBtn.textContent = '+ Add';
@@ -2056,8 +2059,8 @@ function renderTowerTreeNode(towerIdx, path) {
     settingsTreePath = path.concat(node.upgrades.length - 1);
     renderTowerTreeNode(towerIdx, settingsTreePath);
   });
-  childDiv.appendChild(addBtn);
-  fieldset.appendChild(childDiv);
+  listDiv.appendChild(addBtn);
+  fieldset.appendChild(listDiv);
   body.appendChild(fieldset);
 }
 
