@@ -143,6 +143,43 @@ canvas {
   padding: 16px 20px; color: #ccc; font-family: monospace;
   font-size: 14px; max-width: 300px; text-align: center; line-height: 1.5;
 }
+.bestiary-overlay {
+  position: fixed; inset: 0; z-index: 150;
+  background: rgba(0,0,0,0.75);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.bestiary-box {
+  background: #111; border: 1px solid #444; border-radius: 8px;
+  padding: 12px; max-width: 380px; width: 100%; max-height: 80vh;
+  overflow-y: auto; font-family: monospace;
+}
+.bestiary-title {
+  color: #ef5350; font-size: 16px; font-weight: bold;
+  text-align: center; margin-bottom: 10px;
+}
+.bestiary-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 8px; border: 1px solid #2a2a3a; border-radius: 4px;
+  margin-bottom: 4px; cursor: pointer;
+}
+.bestiary-row:hover { background: #1a1a2a; }
+.bestiary-icon {
+  width: 22px; height: 22px; border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: bold; font-size: 13px; flex-shrink: 0;
+}
+.bestiary-info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.bestiary-name { color: #ccc; font-size: 13px; font-weight: bold; }
+.bestiary-desc { color: #777; font-size: 11px; margin-top: 2px; }
+.bestiary-stats {
+  display: none; width: 100%; color: #aaa; font-size: 11px;
+  padding: 6px 0 0; white-space: pre-line; line-height: 1.6;
+}
+.bestiary-close {
+  text-align: center; color: #666; font-size: 12px;
+  margin-top: 8px; cursor: pointer; padding: 4px;
+}
+.bestiary-close:hover { color: #aaa; }
 #settings fieldset legend {
   color: #666;
   font-size: 11px;
@@ -408,6 +445,7 @@ canvas {
   <span id="upgrade-buttons"></span>
   <button id="btn-sell" style="display:none;background:#b71c1c;border-color:#f44336;color:#fff">Sell</button>
   <button id="btn-wave">Wave (W)</button>
+  <button id="btn-bestiary" style="background:#1a1a2a;border-color:#ef5350;color:#ef5350">Bestiary (B)</button>
   <button id="btn-settings">Cfg</button>
 </div>
 

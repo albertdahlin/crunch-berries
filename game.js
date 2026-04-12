@@ -15,28 +15,28 @@ const DAMAGE_TYPE_COLORS = { physical: '#aaa', fire: '#ff6600', ice: '#66ccff', 
 // === CONFIG (data-driven, editable via settings) ===
 const DEFAULT_CONFIG = {
   towers: [
-    { name: 'Soldier', letter: 'S', color: '#4fc3f7', bg: '#1565c0', range: 1, damage: 3, fireRate: 15, cost: 10, hp: 10, damageType: 'physical', upgrades: [
-      { name: 'Swordsman', letter: 'S', color: '#42a5f5', bg: '#1565c0', range: 1, damage: 5, fireRate: 12, cost: 15, hp: 14, damageType: 'physical', upgrades: [
-        { name: '2 Handed', letter: 'H', color: '#1e88e5', bg: '#0d47a1', range: 1, damage: 10, fireRate: 25, cost: 25, hp: 18, damageType: 'physical' },
-        { name: 'Dual Wield', letter: 'W', color: '#64b5f6', bg: '#1565c0', range: 1, damage: 3, fireRate: 6, cost: 25, hp: 12, damageType: 'physical' },
+    { name: 'Soldier', letter: 'S', color: '#4fc3f7', bg: '#1565c0', range: 1, damage: 3, fireRate: 15, cost: 10, hp: 10, damageType: 'physical', desc: 'Melee fighter. Cheap and sturdy, blocks enemy paths.', upgrades: [
+      { name: 'Swordsman', letter: 'S', color: '#42a5f5', bg: '#1565c0', range: 1, damage: 5, fireRate: 12, cost: 15, hp: 14, damageType: 'physical', desc: 'Trained blade fighter with improved damage.', upgrades: [
+        { name: '2 Handed', letter: 'H', color: '#1e88e5', bg: '#0d47a1', range: 1, damage: 10, fireRate: 25, cost: 25, hp: 18, damageType: 'physical', desc: 'Massive strikes. Slow but devastating.' },
+        { name: 'Dual Wield', letter: 'W', color: '#64b5f6', bg: '#1565c0', range: 1, damage: 3, fireRate: 6, cost: 25, hp: 12, damageType: 'physical', desc: 'Twin blades. Very fast attacks, low damage each.' },
       ]},
-      { name: 'Archer', letter: 'A', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 6, damageType: 'physical', projectileSpeed: 0.15, upgrades: [
-        { name: 'Poison', letter: 'P', color: '#81c784', bg: '#2e7d32', range: 3, damage: 1, fireRate: 25, cost: 25, hp: 5, damageType: 'poison', dot: { dps: 1.5, duration: 90 }, projectileSpeed: 0.12 },
-        { name: 'Crossbow', letter: 'X', color: '#ffee58', bg: '#f57f17', range: 4, damage: 6, fireRate: 50, cost: 30, hp: 6, damageType: 'physical', projectileSpeed: 0.2 },
-        { name: 'Longbow', letter: 'L', color: '#fff9c4', bg: '#f57f17', range: 6, damage: 2, fireRate: 18, cost: 20, hp: 5, damageType: 'physical', projectileSpeed: 0.18 },
+      { name: 'Archer', letter: 'A', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 6, damageType: 'physical', projectileSpeed: 0.15, desc: 'Ranged attacker with good reach.', upgrades: [
+        { name: 'Poison', letter: 'P', color: '#81c784', bg: '#2e7d32', range: 3, damage: 1, fireRate: 25, cost: 25, hp: 5, damageType: 'poison', dot: { dps: 1.5, duration: 90 }, projectileSpeed: 0.12, desc: 'Poison-tipped arrows. Low hit damage but deadly DOT.' },
+        { name: 'Crossbow', letter: 'X', color: '#ffee58', bg: '#f57f17', range: 4, damage: 6, fireRate: 50, cost: 30, hp: 6, damageType: 'physical', projectileSpeed: 0.2, desc: 'Heavy bolts. Slow reload, high damage per shot.' },
+        { name: 'Longbow', letter: 'L', color: '#fff9c4', bg: '#f57f17', range: 6, damage: 2, fireRate: 18, cost: 20, hp: 5, damageType: 'physical', projectileSpeed: 0.18, desc: 'Extended range. Fast, light arrows from afar.' },
       ]},
-      { name: 'Thief', letter: 'T', color: '#a5d6a7', bg: '#2e7d32', range: 1, damage: 2, fireRate: 10, cost: 20, hp: 8, damageType: 'physical', goldSteal: 3 },
+      { name: 'Thief', letter: 'T', color: '#a5d6a7', bg: '#2e7d32', range: 1, damage: 2, fireRate: 10, cost: 20, hp: 8, damageType: 'physical', goldSteal: 3, desc: 'Steals gold on killing blows. Fast but fragile.' },
     ]},
-    { name: 'Range', letter: 'R', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 5, damageType: 'physical' },
-    { name: 'DOT', letter: 'D', color: '#81c784', bg: '#2e7d32', range: 1, damage: 0, fireRate: 30, cost: 20, hp: 8, damageType: 'fire', dot: { dps: 1, duration: 90 } },
-    { name: 'Pierce', letter: 'P', color: '#ce93d8', bg: '#6a1b9a', range: 5, damage: 1, fireRate: 45, cost: 25, hp: 5, damageType: 'lightning', pierce: true, sizeW: 1, sizeH: 2, attackDir: 'fixed' },
-    { name: 'Barricade', letter: 'B', color: '#90a4ae', bg: '#455a64', range: 0, damage: 0, fireRate: 9999, cost: 3, hp: 15 },
-    { name: 'Ice', letter: 'I', color: '#b3e5fc', bg: '#0277bd', range: 3, damage: 1, fireRate: 30, cost: 20, hp: 5, damageType: 'ice', splashRadius: 2, projectileSpeed: 0.1, speedFactor: 0.5, speedDuration: 60 },
+    { name: 'Range', letter: 'R', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 5, damageType: 'physical', desc: 'Basic ranged tower. Good all-round attacker.' },
+    { name: 'DOT', letter: 'D', color: '#81c784', bg: '#2e7d32', range: 1, damage: 0, fireRate: 30, cost: 20, hp: 8, damageType: 'fire', dot: { dps: 1, duration: 90 }, desc: 'Sets enemies on fire. No hit damage, deals damage over time.' },
+    { name: 'Pierce', letter: 'P', color: '#ce93d8', bg: '#6a1b9a', range: 5, damage: 1, fireRate: 45, cost: 25, hp: 5, damageType: 'lightning', pierce: true, sizeW: 1, sizeH: 2, attackDir: 'fixed', desc: 'Lightning bolt hits all enemies in a line. Fixed direction.' },
+    { name: 'Barricade', letter: 'B', color: '#90a4ae', bg: '#455a64', range: 0, damage: 0, fireRate: 9999, cost: 3, hp: 15, desc: 'Cheap wall. No attack, blocks paths to redirect enemies.' },
+    { name: 'Ice', letter: 'I', color: '#b3e5fc', bg: '#0277bd', range: 3, damage: 1, fireRate: 30, cost: 20, hp: 5, damageType: 'ice', splashRadius: 2, projectileSpeed: 0.1, speedFactor: 0.5, speedDuration: 60, desc: 'Slows groups of enemies with area ice projectiles.' },
   ],
   monsters: [
-    { name: 'Normal', letter: 'N', color: '#ef5350', hp: 12, speed: 0.08, reward: 5 },
-    { name: 'Fast',   letter: 'F', color: '#ff8a65', hp: 6,  speed: 0.16, reward: 7, damageModifiers: { ice: 2 } },
-    { name: 'Tank',   letter: 'H', color: '#ab47bc', hp: 30, speed: 0.05, reward: 12, damageModifiers: { physical: 0.5, fire: 2, poison: 1.5 } },
+    { name: 'Normal', letter: 'N', color: '#ef5350', hp: 12, speed: 0.08, reward: 5, desc: 'Standard enemy. No special abilities.' },
+    { name: 'Fast',   letter: 'F', color: '#ff8a65', hp: 6,  speed: 0.16, reward: 7, damageModifiers: { ice: 2 }, desc: 'Quick but fragile. Weak to ice.' },
+    { name: 'Tank',   letter: 'H', color: '#ab47bc', hp: 30, speed: 0.05, reward: 12, damageModifiers: { physical: 0.5, fire: 2, poison: 1.5 }, desc: 'Heavy armor. Resists physical, weak to fire and poison.' },
   ],
   waves: {
     baseCounts: [6, 3, 2],
@@ -667,6 +667,7 @@ function updateSellButton() {
   document.getElementById('tower-buttons').style.display = hasSel ? 'none' : '';
   document.getElementById('btn-place').style.display = hasSel ? 'none' : '';
   document.getElementById('btn-wave').style.display = hasSel ? 'none' : '';
+  document.getElementById('btn-bestiary').style.display = hasSel ? 'none' : '';
   document.getElementById('btn-settings').style.display = hasSel ? 'none' : '';
   const descEl = document.getElementById('tower-desc');
   upgContainer.innerHTML = '';
@@ -1196,6 +1197,7 @@ function setupInput() {
       case ' ': case 'Enter': placeTower(); e.preventDefault(); break;
       case 'w': case 'W': startWave(); break;
       case 'x': case 'X': case 'Delete': sellTower(); break;
+      case 'b': case 'B': toggleBestiary(); break;
       case 'Escape': state.selectedPlacedTower = null; updateSellButton(); break;
       default: {
         const n = parseInt(e.key);
@@ -1268,6 +1270,7 @@ function setupInput() {
     state.cursor.visible = true;
     placeTower();
   });
+  document.getElementById('btn-bestiary').addEventListener('click', toggleBestiary);
   document.getElementById('btn-settings').addEventListener('click', () => {
     state.phase = 'MAP_SELECT';
     document.getElementById('hud').style.display = 'none';
@@ -1351,6 +1354,77 @@ function updateTowerButtonLabels() {
     }
     btn.textContent = label;
   });
+}
+
+function toggleBestiary() {
+  const existing = document.querySelector('.bestiary-overlay');
+  if (existing) { existing.remove(); return; }
+  const ov = document.createElement('div');
+  ov.className = 'bestiary-overlay';
+  const box = document.createElement('div');
+  box.className = 'bestiary-box';
+  const title = document.createElement('div');
+  title.className = 'bestiary-title';
+  title.textContent = 'Bestiary';
+  box.appendChild(title);
+  const waveNum = Math.max(1, state.wave || 1);
+  const hpMult = 1 + (waveNum - 1) * (CONFIG.waves.hpScale || 0) / 100;
+  CONFIG.monsters.forEach((m, i) => {
+    const row = document.createElement('div');
+    row.className = 'bestiary-row';
+    const icon = document.createElement('span');
+    icon.className = 'bestiary-icon';
+    icon.style.background = m.color;
+    icon.style.color = '#000';
+    icon.textContent = m.letter;
+    const info = document.createElement('span');
+    info.className = 'bestiary-info';
+    const nameEl = document.createElement('span');
+    nameEl.className = 'bestiary-name';
+    nameEl.textContent = m.name;
+    info.appendChild(nameEl);
+    if (m.desc) {
+      const descEl = document.createElement('span');
+      descEl.className = 'bestiary-desc';
+      descEl.textContent = m.desc;
+      info.appendChild(descEl);
+    }
+    row.appendChild(icon);
+    row.appendChild(info);
+    const stats = document.createElement('div');
+    stats.className = 'bestiary-stats';
+    const scaledHp = Math.round(m.hp * hpMult);
+    const spd = +(m.speed * FPS).toFixed(1);
+    let html = 'HP: ' + scaledHp + ' (base ' + m.hp + ')  ·  Speed: ' + spd + ' t/s  ·  Reward: ' + m.reward + 'g';
+    if (m.damageModifiers) {
+      const parts = [];
+      for (const dt of DAMAGE_TYPES) {
+        const v = m.damageModifiers[dt];
+        if (v !== undefined && v !== 1) {
+          const label = dt.charAt(0).toUpperCase() + dt.slice(1);
+          parts.push(label + ' x' + v);
+        }
+      }
+      if (parts.length) html += '\nModifiers: ' + parts.join(', ');
+    }
+    stats.textContent = html;
+    row.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const wasOpen = stats.style.display === 'block';
+      row.parentElement.querySelectorAll('.bestiary-stats').forEach(s => s.style.display = 'none');
+      if (!wasOpen) stats.style.display = 'block';
+    });
+    row.appendChild(stats);
+    box.appendChild(row);
+  });
+  const close = document.createElement('div');
+  close.className = 'bestiary-close';
+  close.textContent = 'Close';
+  close.addEventListener('click', () => ov.remove());
+  box.appendChild(close);
+  ov.appendChild(box);
+  ov.addEventListener('click', (e) => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
 }
 
 function showMessage(msg) {
@@ -2317,6 +2391,7 @@ function createMonsterFields(m) {
         '<label>Letter ' + H('Character drawn on the monster') + ' <input type="text" class="mo-letter" maxlength="1" value="' + esc(m.letter) + '"></label>' +
         '<label>Color ' + H('Monster color') + ' <input type="color" class="mo-color" value="' + m.color + '"></label>' +
       '</div>' +
+      '<div class="cfg-row"><label>Desc ' + H('Description shown in bestiary') + ' <input type="text" class="mo-desc" style="width:200px" value="' + esc(m.desc || '') + '"></label></div>' +
     '</fieldset>' +
     '<fieldset><legend>Stats</legend>' +
       '<div class="cfg-row">' +
@@ -2427,6 +2502,8 @@ function readMonsterFromForm(div) {
     speed: (+div.querySelector('.mo-speed').value || 1.5) / FPS,
     reward: +div.querySelector('.mo-reward').value || 1,
   };
+  const desc = div.querySelector('.mo-desc').value;
+  if (desc) m.desc = desc;
   const mods = {};
   let hasNonDefault = false;
   for (const dt of DAMAGE_TYPES) {
