@@ -668,12 +668,19 @@ function updateSellButton() {
   document.getElementById('btn-place').style.display = hasSel ? 'none' : '';
   document.getElementById('btn-wave').style.display = hasSel ? 'none' : '';
   document.getElementById('btn-settings').style.display = hasSel ? 'none' : '';
+  const descEl = document.getElementById('tower-desc');
   upgContainer.innerHTML = '';
   if (hasSel) {
     const node = getTowerNode(state.selectedPlacedTower);
     const refund = getSellRefund(state.selectedPlacedTower);
     btn.textContent = 'Sell ' + (node.name || '?') + ' (+' + refund + 'g)';
     btn.style.display = '';
+    if (node.desc) {
+      descEl.textContent = node.desc;
+      descEl.style.display = '';
+    } else {
+      descEl.style.display = 'none';
+    }
     if (node.upgrades && node.upgrades.length > 0) {
       const tower = state.selectedPlacedTower;
       const basePath = tower.upgradePath || [];
@@ -688,6 +695,7 @@ function updateSellButton() {
     }
   } else {
     btn.style.display = 'none';
+    descEl.style.display = 'none';
   }
 }
 
@@ -2233,6 +2241,9 @@ function createTowerFields(t, isRoot, parent) {
         '<label>Color ' + H('Text and letter color') + ' <input type="color" class="tw-color" value="' + effectiveColor + '"></label>' +
         '<label>BG ' + H('Background fill color') + ' <input type="color" class="tw-bg" value="' + effectiveBg + '"></label>' +
       '</div>' +
+      '<div class="cfg-row">' +
+        '<label style="flex:1">Desc ' + H('Description shown when the tower is selected in-game') + ' <input type="text" class="tw-desc" style="width:100%" ' + fv('desc', '') + '></label>' +
+      '</div>' +
     '</fieldset>';
   if (isRoot) {
     html +=
@@ -2335,6 +2346,8 @@ function readTowerFromForm(div, parent) {
   if (name || !isChild) t.name = name;
   const letter = div.querySelector('.tw-letter').value;
   if (letter || !isChild) t.letter = letter || '?';
+  const desc = div.querySelector('.tw-desc').value;
+  if (desc || !isChild) t.desc = desc;
   // Colors — always explicit
   t.color = div.querySelector('.tw-color').value;
   t.bg = div.querySelector('.tw-bg').value;
