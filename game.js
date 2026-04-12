@@ -86,6 +86,13 @@ const GROUND_CHAR_COLOR = ['', '#3a3028', '#1a3a6a', '#4a4a1a', '#1a5a1a'];
 
 // === SAVED MAPS ===
 const GROUND_NAMES = ['Grass', 'Road', 'Water', 'Swamp', 'Forest'];
+const GROUND_HELP = [
+  'Walkable, buildable',
+  'Walkable, not buildable',
+  'Impassable, not buildable',
+  'Walkable, not buildable, 0.5x speed',
+  'Not walkable, buildable',
+];
 
 let savedMaps = [];
 try {
@@ -167,9 +174,11 @@ function rebuildBrushButtons() {
       editor.brush = i;
       document.querySelectorAll('#brush-buttons button').forEach(b =>
         b.classList.toggle('selected', parseInt(b.dataset.brush) === i));
+      document.getElementById('brush-help').textContent = GROUND_HELP[i];
     });
     container.appendChild(btn);
   }
+  document.getElementById('brush-help').textContent = GROUND_HELP[editor.brush];
 }
 
 function paintTile(x, y) {
