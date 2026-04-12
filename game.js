@@ -724,6 +724,7 @@ function updateSellButton() {
     } else {
       statsEl.style.display = 'none';
     }
+    document.getElementById('tower-info').style.display = (node.desc || parts.length) ? '' : 'none';
     if (node.upgrades && node.upgrades.length > 0) {
       const tower = state.selectedPlacedTower;
       const basePath = tower.upgradePath || [];
@@ -742,6 +743,7 @@ function updateSellButton() {
     btn.style.display = 'none';
     descEl.style.display = 'none';
     statsEl.style.display = 'none';
+    document.getElementById('tower-info').style.display = 'none';
   }
   const rotBtn = document.getElementById('btn-rotate');
   if (rotBtn) {
@@ -1398,21 +1400,17 @@ function towerStatSummary(node) {
 }
 
 function showTowerPreview(node) {
+  const info = document.getElementById('tower-info');
   const descEl = document.getElementById('tower-desc');
   const statsEl = document.getElementById('tower-stats');
-  if (node.desc) {
-    descEl.textContent = node.desc;
-    descEl.style.display = '';
-  } else {
-    descEl.style.display = 'none';
-  }
+  descEl.textContent = node.desc || '';
+  descEl.style.display = node.desc ? '' : 'none';
   statsEl.textContent = towerStatSummary(node);
-  statsEl.style.display = '';
+  info.style.display = '';
 }
 
 function hideTowerPreview() {
-  document.getElementById('tower-desc').style.display = 'none';
-  document.getElementById('tower-stats').style.display = 'none';
+  document.getElementById('tower-info').style.display = 'none';
 }
 
 function selectTowerType(idx) {

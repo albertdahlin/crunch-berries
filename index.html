@@ -438,11 +438,13 @@ canvas {
   <div class="ms-version" id="ms-version"></div>
 </div>
 <canvas id="game"></canvas>
+<div id="tower-info" style="display:none;position:sticky;bottom:0;width:100%;background:rgba(10,10,26,0.95);padding:4px 8px;text-align:center;font-family:monospace;z-index:9">
+  <div id="tower-desc" style="color:#888;font-size:12px"></div>
+  <div id="tower-stats" style="color:#666;font-size:11px"></div>
+</div>
 <div id="ui">
   <span id="tower-buttons"></span>
   <button id="btn-place">Place</button>
-  <span id="tower-desc" style="display:none;width:100%;text-align:center;color:#888;font-family:monospace;font-size:12px"></span>
-  <span id="tower-stats" style="display:none;width:100%;text-align:center;color:#666;font-family:monospace;font-size:11px"></span>
   <span id="upgrade-buttons"></span>
   <button id="btn-rotate" style="display:none;background:#333;border-color:#888;color:#ccc">Rotate (R)</button>
   <button id="btn-sell" style="display:none;background:#b71c1c;border-color:#f44336;color:#fff">Sell</button>
