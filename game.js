@@ -523,12 +523,7 @@ function getTowerSize(typeIdx, rotation) {
 }
 
 function getTowerNode(tower) {
-  let node = CONFIG.towers[tower.typeIdx];
-  for (const idx of tower.upgradePath || []) {
-    if (!node.upgrades || !node.upgrades[idx]) break;
-    node = node.upgrades[idx];
-  }
-  return node;
+  return getMergedNode(CONFIG.towers[tower.typeIdx], tower.upgradePath || []);
 }
 
 function towerStat(tower, stat) {
@@ -639,10 +634,11 @@ function upgradeTower(choiceIndex) {
   const tower = state.selectedPlacedTower;
   const node = getTowerNode(tower);
   if (!node.upgrades || !node.upgrades[choiceIndex]) return;
-  const upgrade = node.upgrades[choiceIndex];
+  const newPath = (tower.upgradePath || []).concat(choiceIndex);
+  const upgrade = getMergedNode(CONFIG.towers[tower.typeIdx], newPath);
   if (state.gold < upgrade.cost) { showMessage('Not enough gold!'); return; }
   state.gold -= upgrade.cost;
-  tower.upgradePath = (tower.upgradePath || []).concat(choiceIndex);
+  tower.upgradePath = newPath;
   tower.totalCost = (tower.totalCost || CONFIG.towers[tower.typeIdx].cost) + upgrade.cost;
   const ratio = tower.hp / tower.maxHp;
   tower.maxHp = upgrade.hp;
@@ -679,9 +675,12 @@ function updateSellButton() {
     btn.textContent = 'Sell ' + (node.name || '?') + ' (+' + refund + 'g)';
     btn.style.display = '';
     if (node.upgrades && node.upgrades.length > 0) {
+      const tower = state.selectedPlacedTower;
+      const basePath = tower.upgradePath || [];
       node.upgrades.forEach((upg, i) => {
+        const em = getMergedNode(CONFIG.towers[tower.typeIdx], basePath.concat(i));
         const ubtn = document.createElement('button');
-        ubtn.textContent = (i + 1) + '. ' + upg.name + ' (' + upg.cost + 'g)';
+        ubtn.textContent = (i + 1) + '. ' + em.name + ' (' + em.cost + 'g)';
         ubtn.style.cssText = 'background:#1b5e20;border-color:#4caf50;color:#fff';
         ubtn.addEventListener('click', () => upgradeTower(i));
         upgContainer.appendChild(ubtn);
@@ -1816,6 +1815,23 @@ function getConfigNode(root, path) {
   return node;
 }
 
+function getMergedNode(root, path) {
+  let merged = {};
+  let node = root;
+  for (const key in node) {
+    if (key !== 'upgrades') merged[key] = node[key];
+  }
+  for (const idx of path) {
+    if (!node.upgrades || !node.upgrades[idx]) break;
+    node = node.upgrades[idx];
+    for (const key in node) {
+      if (key !== 'upgrades') merged[key] = node[key];
+    }
+  }
+  if (node.upgrades) merged.upgrades = node.upgrades;
+  return merged;
+}
+
 function openSettings() {
   document.getElementById('settings').style.display = 'flex';
   document.getElementById('map-select').style.display = 'none';
@@ -2010,11 +2026,16 @@ function saveTowerFormToNode() {
   const body = document.getElementById('settings-detail-body');
   const div = body.querySelector('.cfg-item');
   if (!div) return;
-  const node = getConfigNode(CONFIG.towers[settingsDetail.index], settingsTreePath);
-  const formData = readTowerFromForm(div);
-  // Preserve upgrades array (not in form)
-  formData.upgrades = node.upgrades;
+  const root = CONFIG.towers[settingsDetail.index];
+  const node = getConfigNode(root, settingsTreePath);
+  const isChild = settingsTreePath.length > 0;
+  const parent = isChild ? getMergedNode(root, settingsTreePath.slice(0, -1)) : null;
+  const formData = readTowerFromForm(div, parent);
+  // Clear old properties and replace with form data, preserving upgrades
+  const upgrades = node.upgrades;
+  for (const key in node) delete node[key];
   Object.assign(node, formData);
+  if (upgrades) node.upgrades = upgrades;
 }
 
 function renderTowerTreeNode(towerIdx, path) {
@@ -2032,8 +2053,11 @@ function renderTowerTreeNode(towerIdx, path) {
   }
   title.textContent = titleText;
 
+  const isRoot = path.length === 0;
+  const parent = isRoot ? null : getMergedNode(root, path.slice(0, -1));
+
   body.innerHTML = '';
-  body.appendChild(createTowerFields(node, path.length === 0));
+  body.appendChild(createTowerFields(node, isRoot, parent));
 
   // Breadcrumb navigation
   if (path.length > 0) {
@@ -2067,13 +2091,15 @@ function renderTowerTreeNode(towerIdx, path) {
   fieldset.innerHTML = '<legend>Upgrades</legend>';
   const listDiv = document.createElement('div');
   listDiv.className = 'tree-upgrade-list';
+  const merged = getMergedNode(root, path);
   const upgrades = node.upgrades || [];
   upgrades.forEach((upg, i) => {
+    const em = getMergedNode(root, path.concat(i));
     const row = document.createElement('div');
     row.className = 'cfg-list-item';
     row.innerHTML =
-      '<div class="cfg-swatch" style="background:' + (upg.bg || upg.color) + '">' + esc(upg.letter) + '</div>' +
-      '<span class="cfg-list-name">' + esc(upg.name) + ' <span style="color:#888;font-size:11px">(' + upg.cost + 'g)</span></span>';
+      '<div class="cfg-swatch" style="background:' + (em.bg || em.color) + '">' + esc(em.letter) + '</div>' +
+      '<span class="cfg-list-name">' + esc(em.name) + ' <span style="color:#888;font-size:11px">(' + em.cost + 'g)</span></span>';
     const rm = document.createElement('button');
     rm.textContent = '\u00d7';
     rm.className = 'tree-child-rm';
@@ -2098,14 +2124,8 @@ function renderTowerTreeNode(towerIdx, path) {
   addBtn.addEventListener('click', () => {
     saveTowerFormToNode();
     if (!node.upgrades) node.upgrades = [];
-    const clone = { name: 'New', letter: node.letter, color: node.color, bg: node.bg,
-      range: node.range, damage: node.damage, fireRate: node.fireRate, cost: 10,
-      hp: node.hp, damageType: node.damageType || 'physical' };
-    if (node.pierce) clone.pierce = true;
-    if (node.dot) clone.dot = { dps: node.dot.dps, duration: node.dot.duration };
-    if (node.projectileSpeed) clone.projectileSpeed = node.projectileSpeed;
-    if (node.splashRadius) clone.splashRadius = node.splashRadius;
-    if (node.speedFactor && node.speedFactor !== 1) { clone.speedFactor = node.speedFactor; clone.speedDuration = node.speedDuration; }
+    const merged = getMergedNode(root, path);
+    const clone = { name: 'New', letter: merged.letter, color: merged.color, bg: merged.bg, cost: 10 };
     node.upgrades.push(clone);
     settingsTreePath = path.concat(node.upgrades.length - 1);
     renderTowerTreeNode(towerIdx, settingsTreePath);
@@ -2144,11 +2164,33 @@ function deleteDetailItem() {
   showSettingsList();
 }
 
-function createTowerFields(t, isRoot) {
+function createTowerFields(t, isRoot, parent) {
   const div = document.createElement('div');
   div.className = 'cfg-item';
-  const dtVal = t.damageType || 'physical';
+  // Helper: value="X" if explicit on node, placeholder="X" (parent val) if inherited
+  function fv(key, fallback) {
+    if (!parent || t.hasOwnProperty(key)) {
+      var v = t[key] !== undefined ? t[key] : fallback;
+      return 'value="' + esc(String(v)) + '"';
+    }
+    var p = parent[key] !== undefined ? parent[key] : fallback;
+    return 'placeholder="' + esc(String(p)) + '"';
+  }
+  // Effective values for fields that can't be empty
+  const effectiveColor = t.color || (parent ? parent.color : '#ffffff');
+  const effectiveBg = t.bg || (parent ? parent.bg : '#000000');
+  const effectivePierce = t.hasOwnProperty('pierce') ? t.pierce : (parent ? parent.pierce : false);
+  const effectiveDot = t.hasOwnProperty('dot') ? t.dot : (parent ? parent.dot : null);
+  const hasDot = effectiveDot && effectiveDot !== false;
+  const dotDps = hasDot ? effectiveDot.dps : 1;
+  const dotDur = hasDot ? effectiveDot.duration : 90;
+  // Damage type select
+  const dtVal = t.hasOwnProperty('damageType') ? t.damageType : (parent ? '' : 'physical');
   let dtOpts = '';
+  if (parent) {
+    const pdt = parent.damageType || 'physical';
+    dtOpts = '<option value=""' + (dtVal === '' ? ' selected' : '') + '>Inherit (' + pdt.charAt(0).toUpperCase() + pdt.slice(1) + ')</option>';
+  }
   for (const dt of DAMAGE_TYPES) {
     dtOpts += '<option value="' + dt + '"' + (dt === dtVal ? ' selected' : '') + '>' + dt.charAt(0).toUpperCase() + dt.slice(1) + '</option>';
   }
@@ -2156,10 +2198,10 @@ function createTowerFields(t, isRoot) {
   let html =
     '<fieldset><legend>Identity</legend>' +
       '<div class="cfg-row">' +
-        '<label>Name <input type="text" class="tw-name" value="' + esc(t.name) + '"></label>' +
-        '<label>Letter <input type="text" class="tw-letter" maxlength="1" value="' + esc(t.letter) + '"></label>' +
-        '<label>Color <input type="color" class="tw-color" value="' + t.color + '"></label>' +
-        '<label>BG <input type="color" class="tw-bg" value="' + t.bg + '"></label>' +
+        '<label>Name <input type="text" class="tw-name" ' + fv('name', '') + '></label>' +
+        '<label>Letter <input type="text" class="tw-letter" maxlength="1" ' + fv('letter', '?') + '></label>' +
+        '<label>Color <input type="color" class="tw-color" value="' + effectiveColor + '"></label>' +
+        '<label>BG <input type="color" class="tw-bg" value="' + effectiveBg + '"></label>' +
       '</div>' +
     '</fieldset>';
   if (isRoot) {
@@ -2178,35 +2220,35 @@ function createTowerFields(t, isRoot) {
   html +=
     '<fieldset><legend>Stats</legend>' +
       '<div class="cfg-row">' +
-        '<label>Cost <input type="number" class="tw-cost" min="0" value="' + t.cost + '"></label>' +
-        '<label>HP <input type="number" class="tw-hp" min="1" value="' + t.hp + '"></label>' +
-        '<label>Range <input type="number" class="tw-range" min="0" value="' + t.range + '"></label>' +
+        '<label>Cost <input type="number" class="tw-cost" min="0" ' + fv('cost', 0) + '></label>' +
+        '<label>HP <input type="number" class="tw-hp" min="1" ' + fv('hp', 1) + '></label>' +
+        '<label>Range <input type="number" class="tw-range" min="0" ' + fv('range', 0) + '></label>' +
       '</div>' +
       '<div class="cfg-row">' +
-        '<label>Damage <input type="number" class="tw-damage" min="0" value="' + t.damage + '"></label>' +
-        '<label>Fire Rate <input type="number" class="tw-fireRate" min="1" value="' + t.fireRate + '"></label>' +
+        '<label>Damage <input type="number" class="tw-damage" min="0" ' + fv('damage', 0) + '></label>' +
+        '<label>Fire Rate <input type="number" class="tw-fireRate" min="1" ' + fv('fireRate', 1) + '></label>' +
         '<label>Dmg Type <select class="tw-damageType">' + dtOpts + '</select></label>' +
       '</div>' +
       '<div class="cfg-row">' +
-        '<label><input type="checkbox" class="tw-pierce"' + (t.pierce ? ' checked' : '') + '> Pierce</label>' +
-        '<label>Splash Radius <input type="number" class="tw-splashRadius" min="0" step="0.5" value="' + (t.splashRadius || 0) + '"></label>' +
-        '<label>Projectile Spd <input type="number" class="tw-projectileSpeed" min="0" step="0.01" value="' + (t.projectileSpeed || 0) + '"></label>' +
+        '<label><input type="checkbox" class="tw-pierce"' + (effectivePierce ? ' checked' : '') + '> Pierce</label>' +
+        '<label>Splash Radius <input type="number" class="tw-splashRadius" min="0" step="0.5" ' + fv('splashRadius', 0) + '></label>' +
+        '<label>Projectile Spd <input type="number" class="tw-projectileSpeed" min="0" step="0.01" ' + fv('projectileSpeed', 0) + '></label>' +
       '</div>' +
     '</fieldset>' +
     '<fieldset><legend>Effects</legend>' +
       '<div class="cfg-row">' +
-        '<label><input type="checkbox" class="tw-hasDot"' + (t.dot ? ' checked' : '') + '> DOT</label>' +
+        '<label><input type="checkbox" class="tw-hasDot"' + (hasDot ? ' checked' : '') + '> DOT</label>' +
       '</div>' +
-      '<div class="cfg-row cfg-dot-fields"' + (t.dot ? '' : ' style="display:none"') + '>' +
-        '<label>DPS <input type="number" class="tw-dotDps" min="0" step="0.1" value="' + (t.dot ? t.dot.dps : 1) + '"></label>' +
-        '<label>Duration <input type="number" class="tw-dotDur" min="1" value="' + (t.dot ? t.dot.duration : 90) + '"></label>' +
-      '</div>' +
-      '<div class="cfg-row">' +
-        '<label>Slow Factor <input type="number" class="tw-speedFactor" min="0" step="0.1" value="' + (t.speedFactor || 1) + '"></label>' +
-        '<label>Slow Dur <input type="number" class="tw-speedDuration" min="1" value="' + (t.speedDuration || 60) + '"></label>' +
+      '<div class="cfg-row cfg-dot-fields"' + (hasDot ? '' : ' style="display:none"') + '>' +
+        '<label>DPS <input type="number" class="tw-dotDps" min="0" step="0.1" value="' + dotDps + '"></label>' +
+        '<label>Duration <input type="number" class="tw-dotDur" min="1" value="' + dotDur + '"></label>' +
       '</div>' +
       '<div class="cfg-row">' +
-        '<label>Gold Steal <input type="number" class="tw-goldSteal" min="0" value="' + (t.goldSteal || 0) + '"></label>' +
+        '<label>Slow Factor <input type="number" class="tw-speedFactor" min="0" step="0.1" ' + fv('speedFactor', 1) + '></label>' +
+        '<label>Slow Dur <input type="number" class="tw-speedDuration" min="1" ' + fv('speedDuration', 60) + '></label>' +
+      '</div>' +
+      '<div class="cfg-row">' +
+        '<label>Gold Steal <input type="number" class="tw-goldSteal" min="0" ' + fv('goldSteal', 0) + '></label>' +
       '</div>' +
     '</fieldset>';
   div.innerHTML = html;
@@ -2249,37 +2291,80 @@ function createMonsterFields(m) {
 
 // === READ FORM DATA ===
 
-function readTowerFromForm(div) {
-  const t = {
-    name: div.querySelector('.tw-name').value,
-    letter: div.querySelector('.tw-letter').value || '?',
-    color: div.querySelector('.tw-color').value,
-    bg: div.querySelector('.tw-bg').value,
-    range: +div.querySelector('.tw-range').value,
-    damage: +div.querySelector('.tw-damage').value,
-    fireRate: +div.querySelector('.tw-fireRate').value || 1,
-    cost: +div.querySelector('.tw-cost').value,
-    hp: +div.querySelector('.tw-hp').value || 1,
-  };
-  if (div.querySelector('.tw-pierce').checked) t.pierce = true;
-  if (div.querySelector('.tw-hasDot').checked) {
-    t.dot = {
-      dps: +div.querySelector('.tw-dotDps').value || 1,
-      duration: +div.querySelector('.tw-dotDur').value || 90,
-    };
+function readTowerFromForm(div, parent) {
+  const t = {};
+  const isChild = !!parent;
+  // Helper: read number input, returns undefined if empty on child
+  function num(sel) {
+    const v = div.querySelector(sel).value;
+    return (isChild && v === '') ? undefined : +v;
   }
-  t.damageType = div.querySelector('.tw-damageType').value || 'physical';
-  const sf = +div.querySelector('.tw-speedFactor').value;
-  if (sf && sf !== 1) t.speedFactor = sf;
-  const sd = +div.querySelector('.tw-speedDuration').value;
-  if (sd && sd !== 60) t.speedDuration = sd;
-  const sr = +div.querySelector('.tw-splashRadius').value;
-  t.splashRadius = sr > 0 ? sr : 0;
-  const ps = +div.querySelector('.tw-projectileSpeed').value;
-  t.projectileSpeed = ps > 0 ? ps : 0;
-  const gs = +div.querySelector('.tw-goldSteal').value;
-  if (gs > 0) t.goldSteal = gs;
-  // Placement fields only present at root
+  // Name, letter — skip if empty on child (inherit)
+  const name = div.querySelector('.tw-name').value;
+  if (name || !isChild) t.name = name;
+  const letter = div.querySelector('.tw-letter').value;
+  if (letter || !isChild) t.letter = letter || '?';
+  // Colors — always explicit
+  t.color = div.querySelector('.tw-color').value;
+  t.bg = div.querySelector('.tw-bg').value;
+  // Numeric stats — empty = inherit for children
+  var v;
+  v = num('.tw-cost'); if (v !== undefined) t.cost = v;
+  v = num('.tw-hp'); if (v !== undefined) t.hp = v || 1;
+  v = num('.tw-range'); if (v !== undefined) t.range = v;
+  v = num('.tw-damage'); if (v !== undefined) t.damage = v;
+  v = num('.tw-fireRate'); if (v !== undefined) t.fireRate = v || 1;
+  // Pierce — compare with parent to detect change
+  const pierceChecked = div.querySelector('.tw-pierce').checked;
+  if (isChild) {
+    if (pierceChecked !== !!parent.pierce) t.pierce = pierceChecked;
+  } else {
+    if (pierceChecked) t.pierce = true;
+  }
+  // DOT — compare with parent to detect change
+  const hasDot = div.querySelector('.tw-hasDot').checked;
+  if (isChild) {
+    const parentHasDot = !!(parent.dot && parent.dot !== false);
+    if (hasDot !== parentHasDot) {
+      if (hasDot) {
+        t.dot = { dps: +div.querySelector('.tw-dotDps').value || 1, duration: +div.querySelector('.tw-dotDur').value || 90 };
+      } else {
+        t.dot = false;
+      }
+    }
+  } else {
+    if (hasDot) {
+      t.dot = { dps: +div.querySelector('.tw-dotDps').value || 1, duration: +div.querySelector('.tw-dotDur').value || 90 };
+    }
+  }
+  // Damage type — empty = inherit
+  const dtVal = div.querySelector('.tw-damageType').value;
+  if (dtVal || !isChild) t.damageType = dtVal || 'physical';
+  // Speed — empty = inherit for children
+  const sf = num('.tw-speedFactor');
+  if (isChild) {
+    if (sf !== undefined) t.speedFactor = sf;
+  } else {
+    if (sf && sf !== 1) t.speedFactor = sf;
+  }
+  const sd = num('.tw-speedDuration');
+  if (isChild) {
+    if (sd !== undefined) t.speedDuration = sd;
+  } else {
+    if (sd && sd !== 60) t.speedDuration = sd;
+  }
+  // Splash, projectile — empty = inherit
+  v = num('.tw-splashRadius');
+  if (v !== undefined) t.splashRadius = v > 0 ? v : 0;
+  else if (!isChild) t.splashRadius = 0;
+  v = num('.tw-projectileSpeed');
+  if (v !== undefined) t.projectileSpeed = v > 0 ? v : 0;
+  else if (!isChild) t.projectileSpeed = 0;
+  // Gold steal — empty = inherit
+  v = num('.tw-goldSteal');
+  if (isChild) { if (v !== undefined) t.goldSteal = v; }
+  else { if (v > 0) t.goldSteal = v; }
+  // Placement (root only)
   const sizeW = div.querySelector('.tw-sizeW');
   if (sizeW) t.sizeW = +sizeW.value || 2;
   const sizeH = div.querySelector('.tw-sizeH');
