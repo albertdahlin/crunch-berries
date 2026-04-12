@@ -610,6 +610,9 @@ function placeTower() {
     placedAtWave: state.wave,
     upgradePath: [],
     totalCost: type.cost,
+    kills: 0,
+    damageDealt: 0,
+    goldStolen: 0,
   });
 
   state.gold -= type.cost;
@@ -697,10 +700,12 @@ function updateSellButton() {
   document.getElementById('btn-bestiary').style.display = hasSel ? 'none' : '';
   document.getElementById('btn-settings').style.display = hasSel ? 'none' : '';
   const descEl = document.getElementById('tower-desc');
+  const statsEl = document.getElementById('tower-stats');
   upgContainer.innerHTML = '';
   if (hasSel) {
-    const node = getTowerNode(state.selectedPlacedTower);
-    const refund = getSellRefund(state.selectedPlacedTower);
+    const tower = state.selectedPlacedTower;
+    const node = getTowerNode(tower);
+    const refund = getSellRefund(tower);
     btn.textContent = 'Sell ' + (node.name || '?') + ' (+' + refund + 'g)';
     btn.style.display = '';
     if (node.desc) {
@@ -708,6 +713,16 @@ function updateSellButton() {
       descEl.style.display = '';
     } else {
       descEl.style.display = 'none';
+    }
+    var parts = [];
+    if (tower.kills) parts.push(tower.kills + ' kills');
+    if (tower.damageDealt) parts.push(Math.round(tower.damageDealt) + ' dmg');
+    if (tower.goldStolen) parts.push(tower.goldStolen + 'g stolen');
+    if (parts.length) {
+      statsEl.textContent = parts.join('  ·  ');
+      statsEl.style.display = '';
+    } else {
+      statsEl.style.display = 'none';
     }
     if (node.upgrades && node.upgrades.length > 0) {
       const tower = state.selectedPlacedTower;
@@ -718,12 +733,15 @@ function updateSellButton() {
         ubtn.textContent = (i + 1) + '. ' + em.name + ' (' + em.cost + 'g)';
         ubtn.style.cssText = 'background:#1b5e20;border-color:#4caf50;color:#fff';
         ubtn.addEventListener('click', () => upgradeTower(i));
+        ubtn.addEventListener('mouseenter', () => showTowerPreview(em));
+        ubtn.addEventListener('mouseleave', () => updateSellButton());
         upgContainer.appendChild(ubtn);
       });
     }
   } else {
     btn.style.display = 'none';
     descEl.style.display = 'none';
+    statsEl.style.display = 'none';
   }
   const rotBtn = document.getElementById('btn-rotate');
   if (rotBtn) {
@@ -749,17 +767,22 @@ function getDamageModifier(monster, damageType) {
   return (mCfg.damageModifiers && mCfg.damageModifiers[damageType]) ?? 1.0;
 }
 
-function applyDamage(monster, baseDamage, damageType) {
+function applyDamage(monster, baseDamage, damageType, tower) {
   const mod = getDamageModifier(monster, damageType || 'physical');
+  const dealt = baseDamage * mod;
   const wasAlive = monster.hp > 0;
-  monster.hp -= baseDamage * mod;
-  return wasAlive && monster.hp <= 0;
+  monster.hp -= dealt;
+  if (tower) tower.damageDealt = (tower.damageDealt || 0) + dealt;
+  const killed = wasAlive && monster.hp <= 0;
+  if (killed && tower) tower.kills = (tower.kills || 0) + 1;
+  return killed;
 }
 
-function applyStealGold(node) {
+function applyStealGold(node, tower) {
   if (node.goldSteal > 0) {
     state.gold += node.goldSteal;
     state.score += node.goldSteal;
+    if (tower) tower.goldStolen = (tower.goldStolen || 0) + node.goldSteal;
   }
 }
 
@@ -768,13 +791,13 @@ function applySpeedMod(monster, factor, duration) {
   monster.speedMod = { factor: factor, remaining: duration || 60 };
 }
 
-function applySplash(cx, cy, radius, towerType, excludeMonster) {
+function applySplash(cx, cy, radius, towerType, excludeMonster, tower) {
   const dmgType = towerType.damageType || 'physical';
   for (const m of state.monsters) {
     if (m.hp <= 0 || m === excludeMonster) continue;
     const d = Math.hypot(m.x - cx, m.y - cy);
     if (d <= radius) {
-      if (applyDamage(m, towerType.damage, dmgType)) applyStealGold(towerType);
+      if (applyDamage(m, towerType.damage, dmgType, tower)) applyStealGold(towerType, tower);
       if (towerType.speedFactor && towerType.speedFactor !== 1) {
         applySpeedMod(m, towerType.speedFactor, towerType.speedDuration);
       }
@@ -830,7 +853,7 @@ function updateTowers() {
         if (dir === 2 && Math.abs(ry) < corridorW && rx >= 0 && rx <= eRange) inCorridor = true;
         if (dir === 6 && Math.abs(ry) < corridorW && rx >= -eRange && rx <= 0) inCorridor = true;
         if (inCorridor) {
-          if (applyDamage(m, eDmg, node.damageType)) applyStealGold(node);
+          if (applyDamage(m, eDmg, node.damageType, tower)) applyStealGold(node, tower);
           if (node.speedFactor && node.speedFactor !== 1) {
             applySpeedMod(m, node.speedFactor, node.speedDuration);
           }
@@ -901,16 +924,17 @@ function updateTowers() {
           vy: (dy / dist) * node.projectileSpeed,
           damage: eDmg,
           towerNode: node,
+          tower: tower,
           color: node.color,
         });
       } else {
         const dmgType = node.damageType || 'physical';
-        if (applyDamage(nearest, eDmg, dmgType)) applyStealGold(node);
+        if (applyDamage(nearest, eDmg, dmgType, tower)) applyStealGold(node, tower);
         if (node.speedFactor && node.speedFactor !== 1) {
           applySpeedMod(nearest, node.speedFactor, node.speedDuration);
         }
         if (node.splashRadius > 0) {
-          applySplash(nearest.x, nearest.y, node.splashRadius, node, nearest);
+          applySplash(nearest.x, nearest.y, node.splashRadius, node, nearest, tower);
         }
         state.effects.push({ x: ox, y: oy, tx: nearest.x, ty: nearest.y, ttl: 4, color: node.color });
       }
@@ -948,7 +972,7 @@ function updateProjectiles() {
         if (d < hitDist) { hitDist = d; hitMonster = m; }
       }
       if (hitMonster) {
-        if (applyDamage(hitMonster, p.damage, dmgType)) applyStealGold(tn);
+        if (applyDamage(hitMonster, p.damage, dmgType, p.tower)) applyStealGold(tn, p.tower);
         if (tn.speedFactor && tn.speedFactor !== 1) {
           applySpeedMod(hitMonster, tn.speedFactor, tn.speedDuration);
         }
@@ -957,7 +981,7 @@ function updateProjectiles() {
         }
       }
       if (tn.splashRadius > 0) {
-        applySplash(p.x, p.y, tn.splashRadius, tn, hitMonster);
+        applySplash(p.x, p.y, tn.splashRadius, tn, hitMonster, p.tower);
       }
       state.projectiles.splice(i, 1);
     }
@@ -1356,6 +1380,41 @@ function setupInput() {
   });
 }
 
+function towerStatSummary(node) {
+  var p = [];
+  if (node.range > 0) {
+    p.push('Dmg:' + node.damage);
+    p.push('Rate:' + framesToSec(node.fireRate) + 's');
+    p.push('Range:' + node.range);
+  }
+  p.push('HP:' + node.hp);
+  if (node.damageType && node.damageType !== 'physical') p.push(node.damageType);
+  if (node.splashRadius > 0) p.push('Splash:' + node.splashRadius);
+  if (node.pierce) p.push('Pierce');
+  if (node.dot) p.push('DOT:' + node.dot.dps + '/s');
+  if (node.speedFactor && node.speedFactor < 1) p.push('Slow:' + Math.round((1 - node.speedFactor) * 100) + '%');
+  if (node.goldSteal > 0) p.push('+' + node.goldSteal + 'g/kill');
+  return p.join('  ');
+}
+
+function showTowerPreview(node) {
+  const descEl = document.getElementById('tower-desc');
+  const statsEl = document.getElementById('tower-stats');
+  if (node.desc) {
+    descEl.textContent = node.desc;
+    descEl.style.display = '';
+  } else {
+    descEl.style.display = 'none';
+  }
+  statsEl.textContent = towerStatSummary(node);
+  statsEl.style.display = '';
+}
+
+function hideTowerPreview() {
+  document.getElementById('tower-desc').style.display = 'none';
+  document.getElementById('tower-stats').style.display = 'none';
+}
+
 function selectTowerType(idx) {
   if (idx >= 0 && idx < CONFIG.towers.length) {
     const t = CONFIG.towers[idx];
@@ -1369,6 +1428,7 @@ function selectTowerType(idx) {
       btn.classList.toggle('selected', parseInt(btn.dataset.tower) === idx);
     });
     updateTowerButtonLabels();
+    showTowerPreview(t);
   }
 }
 
@@ -2618,6 +2678,8 @@ function rebuildTowerButtons() {
     btn.textContent = (i + 1) + ': ' + t.name + ' (' + t.cost + 'g)';
     if (i === state.selectedTower) btn.classList.add('selected');
     btn.addEventListener('click', () => selectTowerType(i));
+    btn.addEventListener('mouseenter', () => showTowerPreview(t));
+    btn.addEventListener('mouseleave', () => hideTowerPreview());
     container.appendChild(btn);
   });
 }
