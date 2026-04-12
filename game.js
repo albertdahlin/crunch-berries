@@ -166,7 +166,7 @@ function rebuildBrushButtons() {
   container.innerHTML = '';
   for (let i = 0; i < GROUND_NAMES.length; i++) {
     const btn = document.createElement('button');
-    btn.textContent = GROUND_NAMES[i];
+    btn.textContent = (i + 1) + ' ' + GROUND_NAMES[i];
     btn.dataset.brush = i;
     btn.style.borderColor = GROUND_BG[i];
     if (i === editor.brush) btn.classList.add('selected');
@@ -1146,6 +1146,8 @@ function setupInput() {
       return;
     }
     if (state.phase === 'MAP_EDIT') {
+      const tag = document.activeElement && document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
       // Number keys select brush
       const n = parseInt(e.key);
       if (n >= 1 && n <= GROUND_NAMES.length) {
