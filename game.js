@@ -20,6 +20,7 @@ const DEFAULT_CONFIG = {
     { name: 'DOT',       letter: 'D', color: '#81c784', bg: '#2e7d32', range: 1, damage: 0, fireRate: 30, cost: 20, hp: 8, damageType: 'fire', dot: { dps: 1, duration: 90 }, upgradeCost: 12, upgradeDmg: 30, upgradeRange: 10, upgradeRate: 10 },
     { name: 'Pierce',    letter: 'P', color: '#ce93d8', bg: '#6a1b9a', range: 5, damage: 1, fireRate: 45, cost: 25, hp: 5, damageType: 'lightning', pierce: true, sizeW: 1, sizeH: 2, attackDir: 'fixed', upgradeCost: 15, upgradeDmg: 25, upgradeRange: 15, upgradeRate: 10 },
     { name: 'Barricade', letter: 'B', color: '#90a4ae', bg: '#455a64', range: 0, damage: 0, fireRate: 9999, cost: 3, hp: 15 },
+    { name: 'Ice',       letter: 'I', color: '#b3e5fc', bg: '#0277bd', range: 3, damage: 1, fireRate: 30, cost: 20, hp: 5, damageType: 'ice', splashRadius: 2, projectileSpeed: 0.1, speedFactor: 0.5, speedDuration: 60, upgradeCost: 15, upgradeDmg: 0, upgradeRange: 15, upgradeRate: 10 },
   ],
   monsters: [
     { name: 'Normal', letter: 'N', color: '#ef5350', hp: 12, speed: 0.08, reward: 5 },
