@@ -1509,9 +1509,10 @@ function drawTowers() {
       ctx.strokeRect(px + 1, py + 1, tw - 2, th - 2);
       const tcx = (tower.x + size.w / 2) * TILE_SIZE;
       const tcy = (tower.y + size.h / 2) * TILE_SIZE;
+      const eRange = towerStat(tower, 'range');
       ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
       ctx.beginPath();
-      ctx.arc(tcx, tcy, towerStat(tower, 'range') * TILE_SIZE, 0, Math.PI * 2);
+      ctx.arc(tcx, tcy, (eRange + 1 + Math.min(size.w, size.h) / 2) * TILE_SIZE, 0, Math.PI * 2);
       ctx.stroke();
       ctx.lineWidth = 1;
     }
