@@ -682,9 +682,9 @@ function updateSellButton() {
 
 function distToTower(mx, my, tower) {
   const size = getTowerSize(tower.typeIdx, tower.rotation);
-  const cx = Math.max(tower.x, Math.min(tower.x + size.w - 1, Math.floor(mx)));
-  const cy = Math.max(tower.y, Math.min(tower.y + size.h - 1, Math.floor(my)));
-  return Math.abs(mx - cx) + Math.abs(my - cy);
+  const cx = Math.max(tower.x, Math.min(tower.x + size.w, mx));
+  const cy = Math.max(tower.y, Math.min(tower.y + size.h, my));
+  return Math.hypot(mx - cx, my - cy);
 }
 
 // === DAMAGE HELPERS ===
@@ -815,7 +815,7 @@ function updateTowers() {
           const dx = m.x - tcx, dy = m.y - tcy;
           if (dx * fdx + dy * fdy <= 0) continue;
         }
-        const d = (eRange <= 1) ? distToTower(m.x, m.y, tower) : Math.hypot(m.x - tcx, m.y - tcy);
+        const d = distToTower(m.x, m.y, tower);
         if (d < nearDist && d <= eRange + 1) {
           nearDist = d;
           nearest = m;
