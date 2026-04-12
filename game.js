@@ -25,7 +25,7 @@ const DEFAULT_CONFIG = {
         { name: 'Crossbow', letter: 'X', color: '#ffee58', bg: '#f57f17', damage: 6, fireRate: 50, cost: 30, projectileSpeed: 0.2, desc: 'Heavy bolts. Slow reload, high damage per shot.' },
         { name: 'Longbow', letter: 'L', color: '#fff9c4', bg: '#f57f17', range: 6, fireRate: 18, cost: 20, projectileSpeed: 0.18, desc: 'Extended range. Fast, light arrows from afar.' },
       ]},
-      { name: 'Thief', letter: 'T', color: '#a5d6a7', bg: '#2e7d32', damage: 2, fireRate: 10, cost: 20, hp: 8, goldSteal: 3, desc: 'Steals gold on killing blows. Fast but fragile.' },
+      { name: 'Thief', letter: 'T', color: '#a5d6a7', bg: '#2e7d32', damage: 2, fireRate: 10, cost: 20, hp: 8, goldSteal: 3, desc: 'Steals bonus gold when enemies die nearby. Fast but fragile.' },
     ]},
     { name: 'Mage', letter: 'M', color: '#ff8a65', bg: '#bf360c', range: 3, damage: 2, fireRate: 40, cost: 15, hp: 5, damageType: 'fire', projectileSpeed: 0.1, splashRadius: 1, desc: 'Elemental caster. Slow attacks that hit a small area with fire.', upgrades: [
       { name: 'Pyromancer', letter: 'Y', color: '#ff7043', bg: '#bf360c', damage: 3, fireRate: 45, cost: 20, splashRadius: 1.5, dot: { dps: 1.5, duration: 90 }, desc: 'Fire specialist. Burns enemies over time.', upgrades: [
@@ -783,14 +783,6 @@ function applyDamage(monster, baseDamage, damageType, tower) {
   return killed;
 }
 
-function applyStealGold(node, tower) {
-  if (node.goldSteal > 0) {
-    state.gold += node.goldSteal;
-    state.score += node.goldSteal;
-    if (tower) tower.goldStolen = (tower.goldStolen || 0) + node.goldSteal;
-  }
-}
-
 function applySpeedMod(monster, factor, duration) {
   if (factor === 1) return;
   monster.speedMod = { factor: factor, remaining: duration || 60 };
@@ -802,7 +794,7 @@ function applySplash(cx, cy, radius, towerType, excludeMonster, tower) {
     if (m.hp <= 0 || m === excludeMonster) continue;
     const d = Math.hypot(m.x - cx, m.y - cy);
     if (d <= radius) {
-      if (applyDamage(m, towerType.damage, dmgType, tower)) applyStealGold(towerType, tower);
+      applyDamage(m, towerType.damage, dmgType, tower);
       if (towerType.speedFactor && towerType.speedFactor !== 1) {
         applySpeedMod(m, towerType.speedFactor, towerType.speedDuration);
       }
@@ -858,7 +850,7 @@ function updateTowers() {
         if (dir === 2 && Math.abs(ry) < corridorW && rx >= 0 && rx <= eRange) inCorridor = true;
         if (dir === 6 && Math.abs(ry) < corridorW && rx >= -eRange && rx <= 0) inCorridor = true;
         if (inCorridor) {
-          if (applyDamage(m, eDmg, node.damageType, tower)) applyStealGold(node, tower);
+          applyDamage(m, eDmg, node.damageType, tower);
           if (node.speedFactor && node.speedFactor !== 1) {
             applySpeedMod(m, node.speedFactor, node.speedDuration);
           }
@@ -934,7 +926,7 @@ function updateTowers() {
         });
       } else {
         const dmgType = node.damageType || 'physical';
-        if (applyDamage(nearest, eDmg, dmgType, tower)) applyStealGold(node, tower);
+        applyDamage(nearest, eDmg, dmgType, tower);
         if (node.speedFactor && node.speedFactor !== 1) {
           applySpeedMod(nearest, node.speedFactor, node.speedDuration);
         }
@@ -977,7 +969,7 @@ function updateProjectiles() {
         if (d < hitDist) { hitDist = d; hitMonster = m; }
       }
       if (hitMonster) {
-        if (applyDamage(hitMonster, p.damage, dmgType, p.tower)) applyStealGold(tn, p.tower);
+        applyDamage(hitMonster, p.damage, dmgType, p.tower);
         if (tn.speedFactor && tn.speedFactor !== 1) {
           applySpeedMod(hitMonster, tn.speedFactor, tn.speedDuration);
         }
@@ -1133,12 +1125,20 @@ function updateMonsters() {
   for (let i = state.monsters.length - 1; i >= 0; i--) {
     if (state.monsters[i].hp <= 0) {
       const m = state.monsters[i];
-      if (m.hp <= 0 && state.lives > 0) {
-        // Only award gold if monster was killed (not leaked)
-        const tileY = Math.floor(m.y);
-        if (tileY < ROWS - 1) {
-          state.gold += m.reward;
-          state.score += m.reward;
+      const tileY = Math.floor(m.y);
+      const killed = tileY < ROWS - 1;
+      if (killed && state.lives > 0) {
+        state.gold += m.reward;
+        state.score += m.reward;
+        // Gold steal: award bonus gold from nearby towers with goldSteal
+        for (const tower of state.towers) {
+          const node = getTowerNode(tower);
+          if (!node.goldSteal) continue;
+          if (distToTower(m.x, m.y, tower) <= (node.range || 1)) {
+            state.gold += node.goldSteal;
+            state.score += node.goldSteal;
+            tower.goldStolen = (tower.goldStolen || 0) + node.goldSteal;
+          }
         }
       }
       state.monsters.splice(i, 1);
@@ -1398,7 +1398,7 @@ function towerStatSummary(node) {
   if (node.pierce) p.push('Pierce');
   if (node.dot) p.push('DOT:' + node.dot.dps + '/s');
   if (node.speedFactor && node.speedFactor < 1) p.push('Slow:' + Math.round((1 - node.speedFactor) * 100) + '%');
-  if (node.goldSteal > 0) p.push('+' + node.goldSteal + 'g/kill');
+  if (node.goldSteal > 0) p.push('+' + node.goldSteal + 'g/nearby kill');
   return p.join('  ');
 }
 
@@ -2468,7 +2468,7 @@ function createTowerFields(t, isRoot, parent) {
         '<label>Slow Dur ' + H('How long slow lasts in seconds') + ' <input type="number" class="tw-speedDuration" min="0.1" step="0.1" ' + fv('speedDuration', 60, toSec) + '>s</label>' +
       '</div>' +
       '<div class="cfg-row">' +
-        '<label>Gold Steal ' + H('Bonus gold earned on killing blow') + ' <input type="number" class="tw-goldSteal" min="0" ' + fv('goldSteal', 0) + '></label>' +
+        '<label>Gold Steal ' + H('Bonus gold when enemies die in range') + ' <input type="number" class="tw-goldSteal" min="0" ' + fv('goldSteal', 0) + '></label>' +
       '</div>' +
     '</fieldset>';
   div.innerHTML = html;
