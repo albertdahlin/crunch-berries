@@ -811,7 +811,7 @@ function updateTowers() {
           if (dx * fdx + dy * fdy <= 0) continue;
         }
         const d = distToTower(m.x, m.y, tower);
-        if (d > eRange + 1) continue;
+        if (d > eRange) continue;
         const hasDot = !!m.dot;
         if ((!hasDot && nearestHasDot) || (hasDot === nearestHasDot && d < nearDist)) {
           nearDist = d;
@@ -838,7 +838,7 @@ function updateTowers() {
           if (dx * fdx + dy * fdy <= 0) continue;
         }
         const d = distToTower(m.x, m.y, tower);
-        if (d < nearDist && d <= eRange + 1) {
+        if (d < nearDist && d <= eRange) {
           nearDist = d;
           nearest = m;
         }
@@ -1518,7 +1518,7 @@ function drawTowers() {
       const eRange = towerStat(tower, 'range');
       ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
       ctx.beginPath();
-      ctx.arc(tcx, tcy, (eRange + 1 + Math.min(size.w, size.h) / 2) * TILE_SIZE, 0, Math.PI * 2);
+      ctx.arc(tcx, tcy, (eRange + Math.min(size.w, size.h) / 2) * TILE_SIZE, 0, Math.PI * 2);
       ctx.stroke();
       ctx.lineWidth = 1;
     }
