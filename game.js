@@ -2220,9 +2220,9 @@ function readTowerFromForm(div) {
   const sd = +div.querySelector('.tw-speedDuration').value;
   if (sd && sd !== 60) t.speedDuration = sd;
   const sr = +div.querySelector('.tw-splashRadius').value;
-  if (sr > 0) t.splashRadius = sr;
+  t.splashRadius = sr > 0 ? sr : 0;
   const ps = +div.querySelector('.tw-projectileSpeed').value;
-  if (ps > 0) t.projectileSpeed = ps;
+  t.projectileSpeed = ps > 0 ? ps : 0;
   // Placement fields only present at root
   const sizeW = div.querySelector('.tw-sizeW');
   if (sizeW) t.sizeW = +sizeW.value || 2;
