@@ -16,22 +16,41 @@ const DAMAGE_TYPE_COLORS = { physical: '#aaa', fire: '#ff6600', ice: '#66ccff', 
 const DEFAULT_CONFIG = {
   towers: [
     { name: 'Soldier', letter: 'S', color: '#4fc3f7', bg: '#1565c0', range: 1, damage: 3, fireRate: 15, cost: 10, hp: 10, damageType: 'physical', desc: 'Melee fighter. Cheap and sturdy, blocks enemy paths.', upgrades: [
-      { name: 'Swordsman', letter: 'S', color: '#42a5f5', bg: '#1565c0', range: 1, damage: 5, fireRate: 12, cost: 15, hp: 14, damageType: 'physical', desc: 'Trained blade fighter with improved damage.', upgrades: [
-        { name: '2 Handed', letter: 'H', color: '#1e88e5', bg: '#0d47a1', range: 1, damage: 10, fireRate: 25, cost: 25, hp: 18, damageType: 'physical', desc: 'Massive strikes. Slow but devastating.' },
-        { name: 'Dual Wield', letter: 'W', color: '#64b5f6', bg: '#1565c0', range: 1, damage: 3, fireRate: 6, cost: 25, hp: 12, damageType: 'physical', desc: 'Twin blades. Very fast attacks, low damage each.' },
+      { name: 'Swordsman', letter: 'S', color: '#42a5f5', bg: '#1565c0', damage: 5, fireRate: 12, cost: 15, hp: 14, desc: 'Trained blade fighter with improved damage.', upgrades: [
+        { name: '2 Handed', letter: 'H', color: '#1e88e5', bg: '#0d47a1', damage: 10, fireRate: 25, cost: 25, hp: 18, desc: 'Massive strikes. Slow but devastating.' },
+        { name: 'Dual Wield', letter: 'W', color: '#64b5f6', bg: '#1565c0', damage: 3, fireRate: 6, cost: 25, hp: 12, desc: 'Twin blades. Very fast attacks, low damage each.' },
       ]},
-      { name: 'Archer', letter: 'A', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 6, damageType: 'physical', projectileSpeed: 0.15, desc: 'Ranged attacker with good reach.', upgrades: [
+      { name: 'Archer', letter: 'A', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 6, projectileSpeed: 0.15, desc: 'Ranged attacker with good reach.', upgrades: [
         { name: 'Poison', letter: 'P', color: '#81c784', bg: '#2e7d32', range: 3, damage: 1, fireRate: 25, cost: 25, hp: 5, damageType: 'poison', dot: { dps: 1.5, duration: 90 }, projectileSpeed: 0.12, desc: 'Poison-tipped arrows. Low hit damage but deadly DOT.' },
-        { name: 'Crossbow', letter: 'X', color: '#ffee58', bg: '#f57f17', range: 4, damage: 6, fireRate: 50, cost: 30, hp: 6, damageType: 'physical', projectileSpeed: 0.2, desc: 'Heavy bolts. Slow reload, high damage per shot.' },
-        { name: 'Longbow', letter: 'L', color: '#fff9c4', bg: '#f57f17', range: 6, damage: 2, fireRate: 18, cost: 20, hp: 5, damageType: 'physical', projectileSpeed: 0.18, desc: 'Extended range. Fast, light arrows from afar.' },
+        { name: 'Crossbow', letter: 'X', color: '#ffee58', bg: '#f57f17', damage: 6, fireRate: 50, cost: 30, projectileSpeed: 0.2, desc: 'Heavy bolts. Slow reload, high damage per shot.' },
+        { name: 'Longbow', letter: 'L', color: '#fff9c4', bg: '#f57f17', range: 6, fireRate: 18, cost: 20, projectileSpeed: 0.18, desc: 'Extended range. Fast, light arrows from afar.' },
       ]},
-      { name: 'Thief', letter: 'T', color: '#a5d6a7', bg: '#2e7d32', range: 1, damage: 2, fireRate: 10, cost: 20, hp: 8, damageType: 'physical', goldSteal: 3, desc: 'Steals gold on killing blows. Fast but fragile.' },
+      { name: 'Thief', letter: 'T', color: '#a5d6a7', bg: '#2e7d32', damage: 2, fireRate: 10, cost: 20, hp: 8, goldSteal: 3, desc: 'Steals gold on killing blows. Fast but fragile.' },
     ]},
-    { name: 'Range', letter: 'R', color: '#fff176', bg: '#f57f17', range: 4, damage: 2, fireRate: 30, cost: 15, hp: 5, damageType: 'physical', desc: 'Basic ranged tower. Good all-round attacker.' },
-    { name: 'DOT', letter: 'D', color: '#81c784', bg: '#2e7d32', range: 1, damage: 0, fireRate: 30, cost: 20, hp: 8, damageType: 'fire', dot: { dps: 1, duration: 90 }, desc: 'Sets enemies on fire. No hit damage, deals damage over time.' },
-    { name: 'Pierce', letter: 'P', color: '#ce93d8', bg: '#6a1b9a', range: 5, damage: 1, fireRate: 45, cost: 25, hp: 5, damageType: 'lightning', pierce: true, sizeW: 1, sizeH: 2, attackDir: 'fixed', desc: 'Lightning bolt hits all enemies in a line. Fixed direction.' },
-    { name: 'Barricade', letter: 'B', color: '#90a4ae', bg: '#455a64', range: 0, damage: 0, fireRate: 9999, cost: 3, hp: 15, desc: 'Cheap wall. No attack, blocks paths to redirect enemies.' },
-    { name: 'Ice', letter: 'I', color: '#b3e5fc', bg: '#0277bd', range: 3, damage: 1, fireRate: 30, cost: 20, hp: 5, damageType: 'ice', splashRadius: 2, projectileSpeed: 0.1, speedFactor: 0.5, speedDuration: 60, desc: 'Slows groups of enemies with area ice projectiles.' },
+    { name: 'Mage', letter: 'M', color: '#ff8a65', bg: '#bf360c', range: 3, damage: 2, fireRate: 40, cost: 15, hp: 5, damageType: 'fire', projectileSpeed: 0.1, splashRadius: 1, desc: 'Elemental caster. Slow attacks that hit a small area with fire.', upgrades: [
+      { name: 'Pyromancer', letter: 'Y', color: '#ff7043', bg: '#bf360c', damage: 3, fireRate: 45, cost: 20, splashRadius: 1.5, dot: { dps: 1.5, duration: 90 }, desc: 'Fire specialist. Burns enemies over time.', upgrades: [
+        { name: 'Inferno', letter: 'N', color: '#ff5722', bg: '#b71c1c', damage: 2, fireRate: 50, cost: 30, hp: 4, splashRadius: 3, dot: { dps: 2.5, duration: 120 }, desc: 'Devastating firestorm. Huge AOE with intense burn.' },
+        { name: 'Flamecaster', letter: 'F', color: '#ffab91', bg: '#bf360c', damage: 5, fireRate: 35, cost: 25, splashRadius: 0, desc: 'Focused fire bolts. High single-target damage with burn.' },
+      ]},
+      { name: 'Cryomancer', letter: 'C', color: '#80deea', bg: '#006064', damageType: 'ice', damage: 1, fireRate: 35, cost: 20, hp: 6, splashRadius: 2, speedFactor: 0.4, speedDuration: 90, desc: 'Ice specialist. Slows groups of enemies.', upgrades: [
+        { name: 'Blizzard', letter: 'Z', color: '#b2ebf2', bg: '#00838f', fireRate: 30, cost: 30, splashRadius: 3, speedFactor: 0.3, speedDuration: 120, desc: 'Freezing storm. Massive area slow, enemies nearly stop.' },
+        { name: 'Frostbite', letter: 'O', color: '#4dd0e1', bg: '#006064', damage: 2, fireRate: 30, cost: 25, hp: 5, splashRadius: 1, dot: { dps: 1, duration: 120 }, speedFactor: 0.5, speedDuration: 60, desc: 'Icy venom. Slows and deals cold damage over time.' },
+      ]},
+      { name: 'Stormcaller', letter: 'K', color: '#ce93d8', bg: '#4a148c', damageType: 'lightning', range: 4, damage: 2, fireRate: 35, cost: 20, hp: 4, pierce: true, attackDir: 'fixed', desc: 'Lightning specialist. Bolts pierce all enemies in a line.', upgrades: [
+        { name: 'Chain Lightning', letter: 'G', color: '#ba68c8', bg: '#6a1b9a', range: 5, damage: 3, fireRate: 40, cost: 25, desc: 'Devastating storm. Longer range, more powerful bolts.' },
+        { name: 'Thunderbolt', letter: 'V', color: '#e1bee7', bg: '#4a148c', damage: 4, fireRate: 25, cost: 30, hp: 3, range: 5, desc: 'Rapid lightning strikes. Fast, precise, extreme range.' },
+      ]},
+    ]},
+    { name: 'Barricade', letter: 'B', color: '#90a4ae', bg: '#455a64', range: 0, damage: 0, fireRate: 9999, cost: 3, hp: 15, desc: 'Cheap wall. No attack, blocks paths to redirect enemies.', upgrades: [
+      { name: 'Catapult', letter: 'Q', color: '#a1887f', bg: '#4e342e', range: 4, damage: 4, fireRate: 60, cost: 18, hp: 10, damageType: 'physical', projectileSpeed: 0.08, splashRadius: 2, desc: 'Siege engine. Lobs boulders that damage an area.', upgrades: [
+        { name: 'Fire Catapult', letter: 'J', color: '#ff8a65', bg: '#4e342e', damageType: 'fire', damage: 3, fireRate: 55, cost: 25, hp: 8, splashRadius: 2.5, dot: { dps: 2, duration: 90 }, desc: 'Burning pitch. Smaller rocks but sets the ground ablaze.' },
+        { name: 'Trebuchet', letter: 'U', color: '#8d6e63', bg: '#3e2723', damage: 8, fireRate: 90, cost: 30, hp: 8, range: 6, splashRadius: 3, desc: 'Massive siege weapon. Enormous range and splash, very slow.' },
+      ]},
+      { name: 'Ballista', letter: 'D', color: '#bcaaa4', bg: '#4e342e', range: 5, damage: 3, fireRate: 40, cost: 15, hp: 10, damageType: 'physical', pierce: true, attackDir: 'fixed', desc: 'Bolt thrower. Skewers all enemies in a line.', upgrades: [
+        { name: 'Scorpion', letter: 'R', color: '#81c784', bg: '#2e7d32', damageType: 'poison', damage: 2, fireRate: 30, cost: 20, hp: 8, dot: { dps: 1.5, duration: 90 }, desc: 'Venomous bolts. Pierce with lingering poison.' },
+        { name: 'Greatbow', letter: 'I', color: '#d7ccc8', bg: '#3e2723', damage: 6, fireRate: 55, cost: 25, hp: 7, range: 7, desc: 'Heavy siege bow. Extreme range and devastating piercing bolts.' },
+      ]},
+    ]},
   ],
   monsters: [
     { name: 'Normal', letter: 'N', color: '#ef5350', hp: 12, speed: 0.08, reward: 5, desc: 'Standard enemy. No special abilities.' },
@@ -629,6 +648,11 @@ function getSellRefund(tower) {
   return Math.floor(total * CONFIG.game.sellRefundPercent / 100);
 }
 
+function rotatePlacedTower() {
+  if (!state.selectedPlacedTower || state.phase !== 'PLACE') return;
+  state.selectedPlacedTower.rotation = (state.selectedPlacedTower.rotation + 1) % 4;
+}
+
 function upgradeTower(choiceIndex) {
   if (!state.selectedPlacedTower || state.phase === 'GAMEOVER') return;
   const tower = state.selectedPlacedTower;
@@ -698,6 +722,15 @@ function updateSellButton() {
     btn.style.display = 'none';
     descEl.style.display = 'none';
   }
+  const rotBtn = document.getElementById('btn-rotate');
+  if (rotBtn) {
+    if (hasSel && state.phase === 'PLACE') {
+      const selNode = getTowerNode(state.selectedPlacedTower);
+      rotBtn.style.display = (selNode.attackDir === 'fixed' || selNode.pierce) ? '' : 'none';
+    } else {
+      rotBtn.style.display = 'none';
+    }
+  }
 }
 
 function distToTower(mx, my, tower) {
@@ -765,7 +798,7 @@ function updateTowers() {
     const tcy = tower.y + tSize.h / 2;
 
     // Facing direction for fixed towers
-    const isFixed = baseType.attackDir === 'fixed';
+    const isFixed = node.attackDir === 'fixed';
     const fdx = [0, 1, 0, -1][tower.rotation];
     const fdy = [-1, 0, 1, 0][tower.rotation];
 
@@ -915,6 +948,9 @@ function updateProjectiles() {
         if (applyDamage(hitMonster, p.damage, dmgType)) applyStealGold(tn);
         if (tn.speedFactor && tn.speedFactor !== 1) {
           applySpeedMod(hitMonster, tn.speedFactor, tn.speedDuration);
+        }
+        if (tn.dot) {
+          hitMonster.dot = { dps: tn.dot.dps, remaining: tn.dot.duration, damageType: dmgType };
         }
       }
       if (tn.splashRadius > 0) {
@@ -1196,6 +1232,7 @@ function setupInput() {
       case 'ArrowRight': state.cursor.x = Math.min(COLS - pSize.w, state.cursor.x + 1); state.cursor.visible = true; e.preventDefault(); break;
       case ' ': case 'Enter': placeTower(); e.preventDefault(); break;
       case 'w': case 'W': startWave(); break;
+      case 'r': case 'R': rotatePlacedTower(); break;
       case 'x': case 'X': case 'Delete': sellTower(); break;
       case 'b': case 'B': toggleBestiary(); break;
       case 'Escape': state.selectedPlacedTower = null; updateSellButton(); break;
@@ -1265,6 +1302,7 @@ function setupInput() {
   // UI buttons
   document.getElementById('btn-wave').addEventListener('click', startWave);
   document.getElementById('btn-sell').addEventListener('click', sellTower);
+  document.getElementById('btn-rotate').addEventListener('click', rotatePlacedTower);
   // Upgrade buttons are created dynamically in updateSellButton()
   document.getElementById('btn-place').addEventListener('click', () => {
     state.cursor.visible = true;
@@ -1565,7 +1603,7 @@ function drawTowers() {
     ctx.fillText(node.letter, px + tw / 2, py + th / 2);
 
     // Direction arrow for fixed-direction towers
-    if (baseType.attackDir === 'fixed') {
+    if (node.attackDir === 'fixed') {
       const as = TILE_SIZE * 0.3;
       ctx.fillStyle = node.color;
       ctx.beginPath();
