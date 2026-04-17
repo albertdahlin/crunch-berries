@@ -44,7 +44,7 @@ canvas {
 #ui {
   position: sticky;
   bottom: 0;
-  display: flex;
+  display: none;
   gap: 6px;
   padding: 10px 8px;
   padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
@@ -54,7 +54,7 @@ canvas {
   width: 100%;
   z-index: 10;
 }
-#ui button, #settings button {
+#ui button, #edit-campaign button {
   padding: 6px 12px;
   font-size: 14px;
   font-family: monospace;
@@ -71,11 +71,13 @@ canvas {
 #btn-place:active { background: #2e7d32; }
 #btn-wave { background: #0d47a1; border-color: #42a5f5; color: #fff; }
 #btn-wave:active { background: #1565c0; }
+#btn-save { background: #333; border-color: #888; color: #ccc; }
+#btn-home { background: #333; border-color: #666; }
 #tower-buttons { display: contents; }
 #brush-buttons { display: contents; }
 
-/* Settings overlay */
-#settings {
+/* Campaign editor (formerly settings) overlay */
+#edit-campaign {
   display: none;
   position: fixed;
   inset: 0;
@@ -86,16 +88,16 @@ canvas {
   padding: 16px;
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
 }
-#settings h2 { color: #81d4fa; margin: 16px 0 8px; font-size: 16px; }
-#settings h2:first-child { margin-top: 0; }
-#settings .cfg-item {
+#edit-campaign h2 { color: #81d4fa; margin: 16px 0 8px; font-size: 16px; }
+#edit-campaign h2:first-of-type { margin-top: 0; }
+#edit-campaign .cfg-item {
   background: #111;
   border: 1px solid #333;
   border-radius: 6px;
   padding: 10px;
   margin-bottom: 8px;
 }
-#settings .cfg-item-header {
+#edit-campaign .cfg-item-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -103,14 +105,14 @@ canvas {
   font-weight: bold;
   color: #aaa;
 }
-#settings .cfg-row {
+#edit-campaign .cfg-row {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 4px;
   align-items: center;
 }
-#settings fieldset {
+#edit-campaign fieldset {
   border: 1px solid #2a2a3a;
   border-radius: 4px;
   padding: 6px 8px;
@@ -180,23 +182,23 @@ canvas {
   margin-top: 8px; cursor: pointer; padding: 4px;
 }
 .bestiary-close:hover { color: #aaa; }
-#settings fieldset legend {
+#edit-campaign fieldset legend {
   color: #666;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding: 0 4px;
 }
-#settings label {
+#edit-campaign label {
   display: flex;
   align-items: center;
   gap: 4px;
   font-size: 13px;
   color: #999;
 }
-#settings input[type="text"],
-#settings input[type="number"],
-#settings select {
+#edit-campaign input[type="text"],
+#edit-campaign input[type="number"],
+#edit-campaign select {
   width: 60px;
   padding: 4px;
   background: #1a1a2a;
@@ -206,9 +208,9 @@ canvas {
   font-family: monospace;
   font-size: 13px;
 }
-#settings input[type="text"] { width: 80px; }
-#settings select { width: 90px; }
-#settings input[type="color"] {
+#edit-campaign input[type="text"] { width: 80px; }
+#edit-campaign select { width: 90px; }
+#edit-campaign input[type="color"] {
   width: 32px;
   height: 24px;
   padding: 0;
@@ -217,32 +219,31 @@ canvas {
   background: none;
   cursor: pointer;
 }
-#settings .cfg-remove {
+#edit-campaign .cfg-remove {
   background: #4a1a1a;
   border-color: #f44336;
   color: #f44336;
   padding: 2px 8px;
   font-size: 12px;
 }
-#settings .cfg-add {
+#edit-campaign .cfg-add {
   background: #1a2a1a;
   border-color: #4caf50;
   color: #4caf50;
   margin: 4px 0 12px;
 }
-#settings .cfg-actions {
+#edit-campaign .cfg-actions {
   display: flex;
   gap: 8px;
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid #333;
 }
-#settings .cfg-actions button { flex: 1; padding: 10px; font-size: 15px; }
+#edit-campaign .cfg-actions button { flex: 1; padding: 10px; font-size: 15px; }
 .btn-save { background: #1b5e20 !important; border-color: #4caf50 !important; color: #fff !important; }
 .btn-reset { background: #4a1a1a !important; border-color: #f44336 !important; color: #f44336 !important; }
 
-/* Settings list items */
-#settings .cfg-list-item {
+#edit-campaign .cfg-list-item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -256,8 +257,8 @@ canvas {
   font-size: 14px;
   color: #ccc;
 }
-#settings .cfg-list-item:active { background: #222; }
-#settings .cfg-list-item .cfg-swatch {
+#edit-campaign .cfg-list-item:active { background: #222; }
+#edit-campaign .cfg-list-item .cfg-swatch {
   width: 24px;
   height: 24px;
   border-radius: 3px;
@@ -269,10 +270,9 @@ canvas {
   font-weight: bold;
   font-size: 14px;
 }
-#settings .cfg-list-item .cfg-list-name { flex: 1; }
-#settings .cfg-list-item .cfg-list-arrow { color: #555; }
+#edit-campaign .cfg-list-item .cfg-list-name { flex: 1; }
+#edit-campaign .cfg-list-item .cfg-list-arrow { color: #555; }
 
-/* Settings detail view */
 #settings-detail {
   display: none;
   flex-direction: column;
@@ -341,8 +341,8 @@ canvas {
 #btn-editor-back { background: #333; border-color: #666; }
 #btn-editor-clear { background: #4a1a1a; border-color: #f44336; color: #f44336; }
 
-/* Map select screen */
-#map-select {
+/* Screens (home, pickers, empty settings) */
+#home, #screen-list, #screen-settings {
   display: none;
   flex-direction: column;
   align-items: center;
@@ -351,21 +351,46 @@ canvas {
   padding: 24px 16px;
   padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
+  width: 100%;
 }
-#map-select h1 {
+#home h1 {
   color: #81d4fa;
   font-family: monospace;
   font-size: 24px;
   margin-bottom: 24px;
 }
-#map-select .ms-list {
+.screen-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 400px;
+  margin-bottom: 16px;
+}
+.screen-header button {
+  padding: 6px 12px;
+  font-family: monospace;
+  font-size: 14px;
+  background: #222;
+  color: #ccc;
+  border: 1px solid #444;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.screen-title {
+  color: #81d4fa;
+  font-family: monospace;
+  font-size: 18px;
+  font-weight: bold;
+}
+.ms-list {
   width: 100%;
   max-width: 400px;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-#map-select .ms-item {
+.ms-item {
   background: #111;
   border: 1px solid #333;
   border-radius: 6px;
@@ -374,29 +399,25 @@ canvas {
   font-family: monospace;
   touch-action: manipulation;
 }
-#map-select .ms-item:active { background: #1a1a2a; }
-#map-select .ms-item-title {
+.ms-item:active { background: #1a1a2a; }
+.ms-item-title {
   font-size: 15px;
   font-weight: bold;
   color: #4caf50;
 }
-#map-select .ms-item-desc {
+.ms-item-desc {
   font-size: 12px;
   color: #555;
   margin-top: 4px;
 }
-#map-select .ms-saved {
-  border-color: #4fc3f7;
-}
-#map-select .ms-saved .ms-item-title {
-  color: #fff;
-}
-#map-select .ms-saved-top {
+.ms-saved { border-color: #4fc3f7; }
+.ms-saved .ms-item-title { color: #fff; }
+.ms-saved-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-#map-select .ms-btn-edit {
+.ms-btn-edit, .ms-btn-del {
   padding: 4px 8px;
   font-size: 16px;
   line-height: 1;
@@ -405,21 +426,44 @@ canvas {
   cursor: pointer;
   touch-action: manipulation;
   background: none;
-  border: 1px solid #4caf50;
-  color: #4caf50;
 }
-#map-select .ms-settings {
-  border-color: #555;
+.ms-btn-edit { border: 1px solid #4caf50; color: #4caf50; }
+.ms-btn-del  { border: 1px solid #f44336; color: #f44336; }
+.ms-empty {
+  color: #555;
+  font-family: monospace;
+  font-size: 13px;
   text-align: center;
+  padding: 24px 8px;
 }
-#map-select .ms-settings .ms-item-title {
-  color: #888;
-}
-#map-select .ms-version {
+.ms-version {
   color: #333;
   font-family: monospace;
   font-size: 12px;
   margin-top: 12px;
+}
+
+#edit-campaign-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+#edit-campaign-header label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+#edit-campaign-header input {
+  flex: 1;
+  padding: 6px 8px;
+  background: #1a1a2a;
+  color: #fff;
+  border: 1px solid #444;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 14px;
 }
 </style>
 </head>
@@ -432,12 +476,13 @@ canvas {
   <span class="hud-version" id="hud-version"></span>
   <span class="hud-phase" id="hud-phase"></span>
 </div>
-<div id="map-select">
-  <h1>TOWER DEFENCE</h1>
-  <div class="ms-list" id="ms-list"></div>
-  <div class="ms-version" id="ms-version"></div>
-</div>
+
+<div id="home"></div>
+<div id="screen-list"></div>
+<div id="screen-settings"></div>
+
 <canvas id="game"></canvas>
+
 <div id="ui">
   <div id="tower-info" style="display:none;width:100%;text-align:center;font-family:monospace">
     <div id="tower-desc" style="color:#888;font-size:12px"></div>
@@ -450,7 +495,8 @@ canvas {
   <button id="btn-sell" style="display:none;background:#b71c1c;border-color:#f44336;color:#fff">Sell</button>
   <button id="btn-wave">Wave (W)</button>
   <button id="btn-bestiary" style="background:#1a1a2a;border-color:#ef5350;color:#ef5350">Bestiary (B)</button>
-  <button id="btn-settings">Cfg</button>
+  <button id="btn-save">Save</button>
+  <button id="btn-home">Home</button>
 </div>
 
 <div id="editor-ui">
@@ -471,21 +517,26 @@ canvas {
     <button id="btn-editor-save">Save</button>
     <button id="btn-editor-clear">Clear</button>
     <button id="btn-editor-delete" style="display:none;background:#4a1a1a;border-color:#f44336;color:#f44336">Delete</button>
-    <button onclick="exportMap()" style="background:#0d47a1;border-color:#42a5f5;color:#fff">Export</button>
-    <button onclick="importMap()" style="background:#0d47a1;border-color:#42a5f5;color:#fff">Import</button>
+    <button id="btn-editor-export" style="background:#0d47a1;border-color:#42a5f5;color:#fff">Export</button>
+    <button id="btn-editor-import" style="background:#0d47a1;border-color:#42a5f5;color:#fff">Import</button>
     <button id="btn-editor-back">Back</button>
   </div>
 </div>
 
-<div id="settings">
+<div id="edit-campaign">
   <div id="settings-list">
+    <div id="edit-campaign-header">
+      <button id="btn-campaign-save" class="btn-save">Save</button>
+      <label>Name <input type="text" id="edit-campaign-name" maxlength="32" /></label>
+    </div>
+
     <h2>Towers</h2>
     <div id="settings-towers"></div>
-    <button class="cfg-add" onclick="addTowerType()">+ Add Tower</button>
+    <button id="btn-add-tower" class="cfg-add">+ Add Tower</button>
 
     <h2>Monsters</h2>
     <div id="settings-monsters"></div>
-    <button class="cfg-add" onclick="addMonsterType()">+ Add Monster</button>
+    <button id="btn-add-monster" class="cfg-add">+ Add Monster</button>
 
     <h2>Waves</h2>
     <div id="settings-wave-monsters"></div>
@@ -512,25 +563,24 @@ canvas {
     </div>
 
     <div class="cfg-actions">
-      <button class="btn-save" onclick="closeSettings()">Save & Close</button>
-      <button class="btn-reset" onclick="resetSettings()">Reset Defaults</button>
+      <button id="btn-campaign-reset" class="btn-reset">Reset to Classic</button>
     </div>
     <div class="cfg-actions">
-      <button onclick="exportData()" style="background:#0d47a1;border-color:#42a5f5;color:#fff">Export</button>
-      <button onclick="importData()" style="background:#0d47a1;border-color:#42a5f5;color:#fff">Import</button>
+      <button id="btn-campaign-export" style="background:#0d47a1;border-color:#42a5f5;color:#fff">Export</button>
+      <button id="btn-campaign-import" style="background:#0d47a1;border-color:#42a5f5;color:#fff">Import</button>
     </div>
   </div>
 
   <div id="settings-detail">
     <div class="cfg-detail-header">
-      <button onclick="closeDetail()">Back</button>
+      <button id="btn-detail-back">Back</button>
       <span id="settings-detail-title"></span>
-      <button class="cfg-remove" onclick="deleteDetailItem()" style="margin-left:auto">Delete</button>
+      <button id="btn-detail-delete" class="cfg-remove" style="margin-left:auto">Delete</button>
     </div>
     <div class="cfg-detail-body" id="settings-detail-body"></div>
   </div>
 </div>
 
-<script src="game.js"></script>
+<script type="module" src="src/main.js"></script>
 </body>
 </html>
