@@ -332,6 +332,7 @@ export function openCampaignEditor(opts) {
   // === Listeners ===
   const addTowerBtn   = /** @type {HTMLButtonElement} */ (document.getElementById('btn-add-tower'));
   const addMonsterBtn = /** @type {HTMLButtonElement} */ (document.getElementById('btn-add-monster'));
+  const backBtn       = /** @type {HTMLButtonElement} */ (document.getElementById('btn-campaign-back'));
   const saveBtn       = /** @type {HTMLButtonElement} */ (document.getElementById('btn-campaign-save'));
   const resetBtn      = /** @type {HTMLButtonElement} */ (document.getElementById('btn-campaign-reset'));
   const exportBtn     = /** @type {HTMLButtonElement} */ (document.getElementById('btn-campaign-export'));
@@ -351,6 +352,7 @@ export function openCampaignEditor(opts) {
     campaign.waves.unlockWave.push(campaign.monsters.length);
     openDetail('monster', campaign.monsters.length - 1);
   };
+  const onBackBtn = () => { destroy(); onExit(); };
   const onSaveBtn = saveAndExit;
   const onResetBtn = resetToDefaults;
   const onExportBtn = exportCampaign;
@@ -367,6 +369,7 @@ export function openCampaignEditor(opts) {
 
   addTowerBtn.addEventListener('click', onAddTower);
   addMonsterBtn.addEventListener('click', onAddMonster);
+  backBtn.addEventListener('click', onBackBtn);
   saveBtn.addEventListener('click', onSaveBtn);
   resetBtn.addEventListener('click', onResetBtn);
   exportBtn.addEventListener('click', onExportBtn);
@@ -378,6 +381,7 @@ export function openCampaignEditor(opts) {
   function destroy() {
     addTowerBtn.removeEventListener('click', onAddTower);
     addMonsterBtn.removeEventListener('click', onAddMonster);
+    backBtn.removeEventListener('click', onBackBtn);
     saveBtn.removeEventListener('click', onSaveBtn);
     resetBtn.removeEventListener('click', onResetBtn);
     exportBtn.removeEventListener('click', onExportBtn);
