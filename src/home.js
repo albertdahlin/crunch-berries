@@ -26,6 +26,7 @@ import {
 import { loadSavedGames, saveSavedGames, newUserId } from './storage.js';
 import { openMapEditor } from './edit-map.js';
 import { openCampaignEditor } from './edit-campaign.js';
+import { createRouter } from './router.js';
 
 /**
  * @param {{canvas: HTMLCanvasElement, renderer: Renderer, hud: Hud}} opts
@@ -38,7 +39,25 @@ export function createScreenManager({ canvas, renderer, hud }) {
   const editCamp   = /** @type {HTMLElement} */ (document.getElementById('edit-campaign'));
 
   /** @type {?Game} */ let currentGame = null;
-  /** @type {?Campaign} */ let newGameCampaign = null;
+  /** @type {?string} */ let currentGameKey = null;
+  /** @type {?{mapDef: MapDef, campaign: Campaign}} */ let pendingMapEditorPlay = null;
+
+  /** @type {ReturnType<typeof createRouter>} */
+  const router = createRouter([
+    { pattern: '/',                         handler: renderHome },
+    { pattern: '/new-game',                 handler: renderPickCampaign },
+    { pattern: '/new-game/:campaignId',     handler: (p) => renderPickMap(p.campaignId) },
+    { pattern: '/load-game',                handler: renderLoadGame },
+    { pattern: '/maps',                     handler: renderMapList },
+    { pattern: '/maps/new',                 handler: renderMapEditorNew },
+    { pattern: '/maps/:mapId',              handler: (p) => renderMapEditor(p.mapId) },
+    { pattern: '/campaigns',                handler: renderCampaignList },
+    { pattern: '/campaigns/new',            handler: renderCampaignEditorNew },
+    { pattern: '/campaigns/:campaignId',    handler: (p) => renderCampaignEditor(p.campaignId) },
+    { pattern: '/settings',                 handler: renderSettingsScreen },
+    { pattern: '/play/:campaignId/:mapId',  handler: (p) => renderPlay(p.campaignId, p.mapId) },
+    { pattern: '/resume/:saveId',           handler: (p) => renderResume(p.saveId) },
+  ]);
 
   function hideAll() {
     homeEl.style.display = 'none';
@@ -50,14 +69,10 @@ export function createScreenManager({ canvas, renderer, hud }) {
     hud.hide();
   }
 
-  function showHome() {
+  // --- Home ---
+  function renderHome() {
     stopGame();
     hideAll();
-    renderHome();
-    homeEl.style.display = 'flex';
-  }
-
-  function renderHome() {
     homeEl.innerHTML = '';
     const h1 = document.createElement('h1');
     h1.textContent = 'TOWER DEFENCE';
@@ -66,11 +81,11 @@ export function createScreenManager({ canvas, renderer, hud }) {
     const list = document.createElement('div');
     list.className = 'ms-list';
     const items = [
-      { title: 'New Game',        desc: 'Pick a campaign and a map',        go: showNewGamePickCampaign },
-      { title: 'Load Game',       desc: 'Resume a saved game',              go: showLoadGame },
-      { title: 'Map Editor',      desc: 'Create and edit maps',             go: showMapList },
-      { title: 'Campaign Editor', desc: 'Design towers, monsters, waves',   go: showCampaignList },
-      { title: 'Settings',        desc: 'Audio, video, controls',           go: showSettingsScreen },
+      { title: 'New Game',        desc: 'Pick a campaign and a map',        to: '/new-game' },
+      { title: 'Load Game',       desc: 'Resume a saved game',              to: '/load-game' },
+      { title: 'Map Editor',      desc: 'Create and edit maps',             to: '/maps' },
+      { title: 'Campaign Editor', desc: 'Design towers, monsters, waves',   to: '/campaigns' },
+      { title: 'Settings',        desc: 'Audio, video, controls',           to: '/settings' },
     ];
     items.forEach(it => {
       const row = document.createElement('div');
@@ -78,7 +93,7 @@ export function createScreenManager({ canvas, renderer, hud }) {
       row.innerHTML =
         '<div class="ms-item-title">' + it.title + '</div>' +
         '<div class="ms-item-desc">' + it.desc + '</div>';
-      row.addEventListener('click', it.go);
+      row.addEventListener('click', () => router.navigate(it.to));
       list.appendChild(row);
     });
     homeEl.appendChild(list);
@@ -87,44 +102,48 @@ export function createScreenManager({ canvas, renderer, hud }) {
     v.className = 'ms-version';
     v.textContent = 'v' + VERSION;
     homeEl.appendChild(v);
+    homeEl.style.display = 'flex';
   }
 
   // --- New Game: campaign picker ---
-  function showNewGamePickCampaign() {
+  function renderPickCampaign() {
+    stopGame();
     hideAll();
     listEl.style.display = 'flex';
-    renderList('New Game — Pick Campaign', showHome, (body) => {
+    renderList('New Game — Pick Campaign', '/', (body) => {
       listAllCampaigns().forEach(c => {
         const row = makeRow(c.name + (c.builtin ? ' [built-in]' : ''),
           c.towers.length + ' towers · ' + c.monsters.length + ' monsters',
-          () => { newGameCampaign = c; showNewGamePickMap(); });
+          () => router.navigate('/new-game/' + c.id));
         body.appendChild(row);
       });
     });
   }
 
-  // --- New Game: map picker (after campaign is chosen) ---
-  function showNewGamePickMap() {
+  // --- New Game: map picker ---
+  function renderPickMap(campaignId) {
+    const campaign = getCampaignById(campaignId);
+    if (!campaign) { router.navigate('/new-game', { replace: true }); return; }
+    stopGame();
     hideAll();
     listEl.style.display = 'flex';
-    renderList('New Game — Pick Map', showNewGamePickCampaign, (body) => {
+    renderList('New Game — Pick Map', '/new-game', (body) => {
       listAllMaps().forEach(m => {
         const dims = m.cols + 'x' + m.rows;
         const tag = m.id.indexOf('builtin:') === 0 ? ' — built-in' : '';
         const row = makeRow(m.name, dims + tag,
-          () => {
-            if (newGameCampaign) startGame(m, newGameCampaign);
-          });
+          () => router.navigate('/play/' + campaign.id + '/' + m.id));
         body.appendChild(row);
       });
     });
   }
 
   // --- Load Game ---
-  function showLoadGame() {
+  function renderLoadGame() {
+    stopGame();
     hideAll();
     listEl.style.display = 'flex';
-    renderList('Load Game', showHome, (body) => {
+    renderList('Load Game', '/', (body) => {
       const saves = loadSavedGames();
       if (saves.length === 0) {
         const empty = document.createElement('div');
@@ -145,14 +164,14 @@ export function createScreenManager({ canvas, renderer, hud }) {
           '<div class="ms-item-desc">' + dateStr + ' — Tap to resume</div>';
         row.addEventListener('click', (e) => {
           if (/** @type {HTMLElement} */ (e.target).closest('.ms-btn-del')) return;
-          resumeSave(s);
+          router.navigate('/resume/' + s.id);
         });
         const del = /** @type {HTMLElement} */ (row.querySelector('.ms-btn-del'));
         del.addEventListener('click', (e) => {
           e.stopPropagation();
           const remaining = loadSavedGames().filter(x => x.id !== s.id);
           saveSavedGames(remaining);
-          showLoadGame();
+          renderLoadGame();
         });
         body.appendChild(row);
       });
@@ -160,18 +179,18 @@ export function createScreenManager({ canvas, renderer, hud }) {
   }
 
   // --- Map Editor list ---
-  function showMapList() {
+  function renderMapList() {
+    stopGame();
     hideAll();
     listEl.style.display = 'flex';
-    renderList('Map Editor', showHome, (body) => {
+    renderList('Map Editor', '/', (body) => {
       const addRow = makeRow('+ New Map', 'Start with a blank grid',
-        () => openMapEditorAndShow(null));
+        () => router.navigate('/maps/new'));
       addRow.style.borderColor = '#4caf50';
       body.appendChild(addRow);
 
-      const maps = listAllMaps();
-      maps.forEach(m => {
-        if (m.id === EMPTY_MAP_ID) return; // can't edit the built-in empty
+      listAllMaps().forEach(m => {
+        if (m.id === EMPTY_MAP_ID) return;
         const row = document.createElement('div');
         row.className = 'ms-item ms-saved';
         const dims = m.cols + 'x' + m.rows;
@@ -181,13 +200,28 @@ export function createScreenManager({ canvas, renderer, hud }) {
             '<button class="ms-btn-edit" title="Edit">\u270E</button>' +
           '</div>' +
           '<div class="ms-item-desc">' + dims + ' — Tap to edit</div>';
-        row.addEventListener('click', () => openMapEditorAndShow(m.id));
+        row.addEventListener('click', () => router.navigate('/maps/' + m.id));
         body.appendChild(row);
       });
     });
   }
 
-  function openMapEditorAndShow(mapId) {
+  function renderMapEditorNew() {
+    stopGame();
+    hideAll();
+    editorUi.style.display = 'flex';
+    canvas.style.display = 'block';
+    openMapEditor({
+      mapId: null,
+      canvas,
+      renderer,
+      onExit: () => router.navigate('/maps'),
+      onPlay: launchMapEditorPlay,
+    });
+  }
+
+  function renderMapEditor(mapId) {
+    stopGame();
     hideAll();
     editorUi.style.display = 'flex';
     canvas.style.display = 'block';
@@ -195,27 +229,26 @@ export function createScreenManager({ canvas, renderer, hud }) {
       mapId,
       canvas,
       renderer,
-      onExit: showMapList,
-      onPlay: (mapDef) => {
-        const campaign = getCampaignById(BUILTIN_CAMPAIGNS[0].id);
-        if (!campaign) { showMapList(); return; }
-        startGame(mapDef, campaign);
-      },
+      onExit: () => router.navigate('/maps'),
+      onPlay: launchMapEditorPlay,
     });
   }
 
+  function launchMapEditorPlay(mapDef) {
+    const campaign = getCampaignById(BUILTIN_CAMPAIGNS[0].id) || BUILTIN_CAMPAIGNS[0];
+    // Stash so the /play route can look up the fresh unsaved mapDef by id.
+    pendingMapEditorPlay = { mapDef, campaign };
+    router.navigate('/play/' + campaign.id + '/' + mapDef.id);
+  }
+
   // --- Campaign editor list ---
-  function showCampaignList() {
+  function renderCampaignList() {
+    stopGame();
     hideAll();
     listEl.style.display = 'flex';
-    renderList('Campaign Editor', showHome, (body) => {
+    renderList('Campaign Editor', '/', (body) => {
       const addRow = makeRow('+ New Campaign', 'Clone Classic and customize',
-        () => {
-          const newC = cloneCampaignForEdit(BUILTIN_CAMPAIGNS[0]);
-          newC.name = 'New Campaign';
-          upsertUserCampaign(newC);
-          openCampaignEditorAndShow(newC.id);
-        });
+        () => router.navigate('/campaigns/new'));
       addRow.style.borderColor = '#4caf50';
       body.appendChild(addRow);
 
@@ -235,34 +268,44 @@ export function createScreenManager({ canvas, renderer, hud }) {
           const target = /** @type {HTMLElement} */ (e.target);
           if (target.closest('.ms-btn-del')) return;
           if (target.closest('.ms-btn-edit')) return;
-          openCampaignEditorAndShow(c.id);
+          router.navigate('/campaigns/' + c.id);
         });
         const del = row.querySelector('.ms-btn-del');
         if (del) del.addEventListener('click', (e) => {
           e.stopPropagation();
           deleteUserCampaign(c.id);
-          showCampaignList();
+          renderCampaignList();
         });
         const clone = row.querySelector('.ms-btn-edit');
         if (clone && c.builtin) clone.addEventListener('click', (e) => {
           e.stopPropagation();
           const copy = cloneCampaignForEdit(c);
           upsertUserCampaign(copy);
-          openCampaignEditorAndShow(copy.id);
+          router.navigate('/campaigns/' + copy.id);
         });
         body.appendChild(row);
       });
     });
   }
 
-  function openCampaignEditorAndShow(campaignId) {
+  function renderCampaignEditorNew() {
+    const newC = cloneCampaignForEdit(BUILTIN_CAMPAIGNS[0]);
+    newC.name = 'New Campaign';
+    upsertUserCampaign(newC);
+    router.navigate('/campaigns/' + newC.id, { replace: true });
+  }
+
+  function renderCampaignEditor(campaignId) {
+    if (!getCampaignById(campaignId)) { router.navigate('/campaigns', { replace: true }); return; }
+    stopGame();
     hideAll();
     editCamp.style.display = 'flex';
-    openCampaignEditor({ campaignId, onExit: showCampaignList });
+    openCampaignEditor({ campaignId, onExit: () => router.navigate('/campaigns') });
   }
 
   // --- Settings (empty placeholder) ---
-  function showSettingsScreen() {
+  function renderSettingsScreen() {
+    stopGame();
     hideAll();
     settingsEl.style.display = 'flex';
     settingsEl.innerHTML = '';
@@ -270,7 +313,7 @@ export function createScreenManager({ canvas, renderer, hud }) {
     header.className = 'screen-header';
     const back = document.createElement('button');
     back.textContent = '\u2190 Back';
-    back.addEventListener('click', showHome);
+    back.addEventListener('click', () => router.navigate('/'));
     header.appendChild(back);
     const title = document.createElement('span');
     title.className = 'screen-title';
@@ -288,8 +331,54 @@ export function createScreenManager({ canvas, renderer, hud }) {
     settingsEl.appendChild(body);
   }
 
-  // --- Play (Game) ---
-  function startGame(mapDef, campaign) {
+  // --- Play ---
+  function renderPlay(campaignId, mapId) {
+    const key = campaignId + '|' + mapId;
+    // Same game already running — route re-dispatched, do nothing.
+    if (currentGame && currentGameKey === key) return;
+
+    const campaign = getCampaignById(campaignId);
+    if (!campaign) { router.navigate('/', { replace: true }); return; }
+
+    // Map may be a freshly-edited unsaved map from the map editor.
+    let mapDef = null;
+    if (pendingMapEditorPlay && pendingMapEditorPlay.mapDef.id === mapId) {
+      mapDef = pendingMapEditorPlay.mapDef;
+      pendingMapEditorPlay = null;
+    } else {
+      mapDef = getMapById(mapId);
+    }
+    if (!mapDef) { router.navigate('/', { replace: true }); return; }
+
+    startGame(mapDef, campaign, key);
+  }
+
+  function renderResume(saveId) {
+    const saves = loadSavedGames();
+    const save = saves.find(s => s.id === saveId);
+    if (!save) { router.navigate('/load-game', { replace: true }); return; }
+    const campaign = getCampaignById(save.campaignId) || BUILTIN_CAMPAIGNS[0];
+
+    stopGame();
+    hideAll();
+    canvas.style.display = 'block';
+    const game = createGame({
+      mapDef: save.map,
+      campaign,
+      renderer,
+      hud,
+      onQuit: () => router.navigate('/'),
+      onSave: () => saveCurrentGame(game, save.map, campaign),
+    });
+    currentGame = game;
+    currentGameKey = 'resume|' + save.id;
+    bindCanvasInput(canvas, game);
+    bindKeyInput(game);
+    game.restore(save.snapshot);
+    game.start();
+  }
+
+  function startGame(mapDef, campaign, key) {
     stopGame();
     hideAll();
     canvas.style.display = 'block';
@@ -298,32 +387,13 @@ export function createScreenManager({ canvas, renderer, hud }) {
       campaign,
       renderer,
       hud,
-      onQuit: showHome,
+      onQuit: () => router.navigate('/'),
       onSave: () => saveCurrentGame(game, mapDef, campaign),
     });
     currentGame = game;
+    currentGameKey = key;
     bindCanvasInput(canvas, game);
     bindKeyInput(game);
-    game.start();
-  }
-
-  function resumeSave(s) {
-    const campaign = getCampaignById(s.campaignId) || BUILTIN_CAMPAIGNS[0];
-    stopGame();
-    hideAll();
-    canvas.style.display = 'block';
-    const game = createGame({
-      mapDef: s.map,
-      campaign,
-      renderer,
-      hud,
-      onQuit: showHome,
-      onSave: () => saveCurrentGame(game, s.map, campaign),
-    });
-    currentGame = game;
-    bindCanvasInput(canvas, game);
-    bindKeyInput(game);
-    game.restore(s.snapshot);
     game.start();
   }
 
@@ -349,18 +419,19 @@ export function createScreenManager({ canvas, renderer, hud }) {
       currentGame.stop();
       unbindCanvasInput(canvas);
       currentGame = null;
+      currentGameKey = null;
     }
     unbindKeyInput();
   }
 
   // --- List screen helpers ---
-  function renderList(title, onBack, fillBody) {
+  function renderList(title, backPath, fillBody) {
     listEl.innerHTML = '';
     const header = document.createElement('div');
     header.className = 'screen-header';
     const back = document.createElement('button');
     back.textContent = '\u2190 Back';
-    back.addEventListener('click', onBack);
+    back.addEventListener('click', () => router.navigate(backPath));
     header.appendChild(back);
     const titleEl = document.createElement('span');
     titleEl.className = 'screen-title';
@@ -384,16 +455,8 @@ export function createScreenManager({ canvas, renderer, hud }) {
   }
 
   return {
-    showHome,
-    showNewGame: showNewGamePickCampaign,
-    showLoadGame,
-    showMapList,
-    showCampaignList,
-    showSettings: showSettingsScreen,
-    showPlay: startGame,
-    resumePlay: resumeSave,
-    showMapEditor: openMapEditorAndShow,
-    showCampaignEditor: openCampaignEditorAndShow,
+    start: () => router.start(),
+    navigate: router.navigate,
   };
 }
 

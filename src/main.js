@@ -13,4 +13,4 @@ const hud = createHud();
 const screens = createScreenManager({ canvas, renderer, hud });
 
 await loadBuiltinMaps();
-screens.showHome();
+screens.start();
