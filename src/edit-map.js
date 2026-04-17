@@ -12,7 +12,7 @@ import {
 import { buildMapRuntime } from './game.js';
 import { isTopRowReachable, recomputePath } from './pathfind.js';
 import {
-  getMapById, upsertUserMap, deleteUserMap, createBlankUserMap, EMPTY_MAP_ID,
+  getMapById, upsertUserMap, deleteUserMap, createBlankUserMap,
 } from './maps.js';
 
 let activeController = null;
@@ -24,7 +24,9 @@ export function openMapEditor(opts) {
   if (activeController) activeController.destroy();
 
   const { canvas, renderer, onExit, onPlay } = opts;
-  const mapDef = resolveMap(opts.mapId);
+  const resolved = resolveMap(opts.mapId);
+  const mapDef = resolved.map;
+  let persisted = resolved.persisted;
   let runtime = buildMapRuntime(mapDef);
   let dirty = false;
 
@@ -52,7 +54,7 @@ export function openMapEditor(opts) {
   colsEl.value = String(runtime.cols);
   rowsEl.value = String(runtime.rows);
   sizeBtn.textContent = overlay.brushSize + 'x' + overlay.brushSize;
-  deleteBtn.style.display = (mapDef.id && mapDef.id !== EMPTY_MAP_ID && isPersisted(mapDef.id)) ? '' : 'none';
+  deleteBtn.style.display = persisted ? '' : 'none';
 
   renderer.setGridSize(runtime.cols, runtime.rows);
 
@@ -146,6 +148,7 @@ export function openMapEditor(opts) {
     mapDef.id = saved.id;
     mapDef.name = saved.name;
     dirty = false;
+    persisted = true;
     deleteBtn.style.display = '';
     return saved;
   }
@@ -259,7 +262,7 @@ export function openMapEditor(opts) {
   const onSaveBtn = () => { saveCurrent(); };
   const onClearBtn = () => { if (confirm('Clear the map?')) clearMap(); };
   const onDeleteBtn = () => {
-    if (!mapDef.id || !isPersisted(mapDef.id)) return;
+    if (!persisted || !mapDef.id) return;
     if (!confirm('Delete this map?')) return;
     deleteUserMap(mapDef.id);
     destroy();
@@ -325,15 +328,11 @@ export function openMapEditor(opts) {
   activeController = { destroy };
 }
 
-/** @returns {MapDef} */
+/** @returns {{map: MapDef, persisted: boolean}} */
 function resolveMap(mapId) {
-  if (mapId) {
+  if (mapId && mapId.indexOf('builtin:') !== 0) {
     const found = getMapById(mapId);
-    if (found) return { ...found, data: [...found.data] };
+    if (found) return { map: { ...found, data: [...found.data] }, persisted: true };
   }
-  return createBlankUserMap();
-}
-
-function isPersisted(id) {
-  return id && id.indexOf('user:') === 0;
+  return { map: createBlankUserMap(), persisted: false };
 }
