@@ -266,14 +266,19 @@ export function openCampaignEditor(opts) {
     campaign.name = (nameInput.value || '').trim() || 'Untitled';
   }
 
-  function saveAndExit() {
-    readCampaignFromForm();
-    if (source.builtin) {
-      // First save of a freshly-cloned builtin — persist as new user campaign.
-      upsertUserCampaign(campaign);
-    } else {
-      upsertUserCampaign(campaign);
+  function commitPendingDetail() {
+    if (detailState.type === 'tower') {
+      saveTowerFormToNode();
+    } else if (detailState.type === 'monster') {
+      const div = detailBody.querySelector('.cfg-item');
+      if (div) campaign.monsters[detailState.index] = readMonsterFromForm(/** @type {HTMLElement} */ (div));
     }
+  }
+
+  function saveAndExit() {
+    commitPendingDetail();
+    readCampaignFromForm();
+    upsertUserCampaign(campaign);
     destroy();
     onExit();
   }
