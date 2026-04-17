@@ -23,7 +23,7 @@ import {
   deleteUserMap,
   EMPTY_MAP_ID,
 } from './maps.js';
-import { loadSavedGames, saveSavedGames, newUserId } from './storage.js';
+import { loadSavedGames, saveSavedGames, newUserId, clearAllStorage } from './storage.js';
 import { openMapEditor } from './edit-map.js';
 import { openCampaignEditor } from './edit-campaign.js';
 import { createRouter } from './router.js';
@@ -329,6 +329,24 @@ export function createScreenManager({ canvas, renderer, hud }) {
     body.innerHTML = '<div style="font-size:18px;margin-bottom:8px">(coming soon)</div>' +
       '<div style="font-size:13px">Audio, video, and control settings will live here.</div>';
     settingsEl.appendChild(body);
+
+    const danger = document.createElement('div');
+    danger.className = 'screen-body';
+    danger.style.cssText = 'margin-top:32px;padding:16px;border-top:1px solid #333;text-align:center;max-width:400px;width:100%';
+    const clearBtn = document.createElement('button');
+    clearBtn.textContent = 'Clear all local data';
+    clearBtn.style.cssText = 'background:#4a1a1a;border:1px solid #f44336;color:#f44336;padding:10px 16px;font-family:monospace;font-size:14px;border-radius:4px;cursor:pointer';
+    clearBtn.addEventListener('click', () => {
+      if (!confirm('Delete all saved maps, campaigns, and saved games? This cannot be undone.')) return;
+      clearAllStorage();
+      location.reload();
+    });
+    const desc = document.createElement('div');
+    desc.style.cssText = 'font-size:12px;color:#555;margin-top:8px';
+    desc.textContent = 'Removes user maps, campaigns, and saved games from this browser.';
+    danger.appendChild(clearBtn);
+    danger.appendChild(desc);
+    settingsEl.appendChild(danger);
   }
 
   // --- Play ---

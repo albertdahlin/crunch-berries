@@ -86,3 +86,11 @@ export function saveSavedGames(arr) { writeJson(KEY_SAVES, arr); }
 export function newUserId(kind) {
   return (kind || 'user') + ':' + Date.now() + ':' + Math.floor(Math.random() * 1000);
 }
+
+/** Remove everything this app persists: campaigns, maps, saved games. */
+export function clearAllStorage() {
+  localStorage.removeItem(KEY_CAMPAIGNS);
+  localStorage.removeItem(KEY_MAPS);
+  localStorage.removeItem(KEY_SAVES);
+  localStorage.removeItem(KEY_LEGACY_CONFIG);
+}
