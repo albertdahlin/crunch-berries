@@ -141,7 +141,7 @@ export function openMapEditor(opts) {
 
   function saveCurrent() {
     const m = currentMapDef();
-    if (!m.id || m.id === EMPTY_MAP_ID) m.id = createBlankUserMap().id;
+    if (!m.id || m.id.indexOf('builtin:') === 0) m.id = createBlankUserMap().id;
     const saved = upsertUserMap(m);
     mapDef.id = saved.id;
     mapDef.name = saved.name;

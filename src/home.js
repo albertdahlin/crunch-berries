@@ -21,7 +21,8 @@ import {
   getMapById,
   createBlankUserMap,
   deleteUserMap,
-  EMPTY_MAP_ID,
+  cloneMapForEdit,
+  upsertUserMap,
 } from './maps.js';
 import { loadSavedGames, saveSavedGames, newUserId, clearAllStorage } from './storage.js';
 import { openMapEditor } from './edit-map.js';
@@ -190,17 +191,29 @@ export function createScreenManager({ canvas, renderer, hud }) {
       body.appendChild(addRow);
 
       listAllMaps().forEach(m => {
-        if (m.id === EMPTY_MAP_ID) return;
+        const isBuiltin = m.id.indexOf('builtin:') === 0;
         const row = document.createElement('div');
         row.className = 'ms-item ms-saved';
         const dims = m.cols + 'x' + m.rows;
+        const badge = isBuiltin ? ' [built-in]' : '';
+        const actionBtn = isBuiltin
+          ? '<button class="ms-btn-edit" title="Clone">\u29C9</button>'
+          : '<button class="ms-btn-edit" title="Edit">\u270E</button>';
         row.innerHTML =
           '<div class="ms-saved-top">' +
-            '<span class="ms-item-title">' + esc(m.name) + '</span>' +
-            '<button class="ms-btn-edit" title="Edit">\u270E</button>' +
+            '<span class="ms-item-title">' + esc(m.name) + badge + '</span>' +
+            actionBtn +
           '</div>' +
-          '<div class="ms-item-desc">' + dims + ' — Tap to edit</div>';
-        row.addEventListener('click', () => router.navigate('/maps/' + m.id));
+          '<div class="ms-item-desc">' + dims + (isBuiltin ? ' — Tap to clone' : ' — Tap to edit') + '</div>';
+        row.addEventListener('click', () => {
+          if (isBuiltin) {
+            const copy = cloneMapForEdit(m);
+            upsertUserMap(copy);
+            router.navigate('/maps/' + copy.id);
+          } else {
+            router.navigate('/maps/' + m.id);
+          }
+        });
         body.appendChild(row);
       });
     });
@@ -221,6 +234,15 @@ export function createScreenManager({ canvas, renderer, hud }) {
   }
 
   function renderMapEditor(mapId) {
+    // Built-in maps are read-only; editing one clones it into a user map.
+    if (mapId.indexOf('builtin:') === 0) {
+      const src = getMapById(mapId);
+      if (!src) { router.navigate('/maps', { replace: true }); return; }
+      const copy = cloneMapForEdit(src);
+      upsertUserMap(copy);
+      router.navigate('/maps/' + copy.id, { replace: true });
+      return;
+    }
     stopGame();
     hideAll();
     editorUi.style.display = 'flex';

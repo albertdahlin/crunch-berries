@@ -76,13 +76,24 @@ export function getMapById(id) {
 
 /** @param {MapDef} map @returns {MapDef} The saved map, with id assigned if new. */
 export function upsertUserMap(map) {
-  if (map.id === EMPTY_MAP_ID) throw new Error('cannot save over built-in empty');
+  if (map.id && map.id.indexOf('builtin:') === 0) throw new Error('cannot save over built-in map');
   const list = loadMaps();
   if (!map.id) map.id = newUserId('map');
   const idx = list.findIndex(m => m.id === map.id);
   if (idx >= 0) list[idx] = map; else list.push(map);
   saveMaps(list);
   return map;
+}
+
+/** @param {MapDef} source @returns {MapDef} A fresh unsaved user copy. */
+export function cloneMapForEdit(source) {
+  return {
+    id: newUserId('map'),
+    name: source.name + ' (copy)',
+    cols: source.cols,
+    rows: source.rows,
+    data: [...source.data],
+  };
 }
 
 /** @param {string} id */
