@@ -15,7 +15,7 @@ import {
   FPS, TICK_RATE,
   DX, DY,
   GROUND_GRASS, GROUND_ROAD,
-  GROUND_WALKABLE, GROUND_BUILDABLE, GROUND_SPEED_MULT,
+  GROUND_WALKABLE, GROUND_BUILDABLE, GROUND_SPEED_MULT, GROUND_BLOCKS_SIGHT,
 } from './constants.js';
 import {
   getMergedNode, getTowerSize, getTowerNode, getWaveConfig,
@@ -135,6 +135,26 @@ export function createGame(opts) {
       }
     }
     state.effects.push({ type: 'circle', x: cx, y: cy, radius, ttl: 8, color: towerNode.color });
+  }
+
+  // === Line of sight ===
+  // Returns false if any blocks-sight tile (e.g. mountain) lies on the line
+  // segment between two world-space tile points. Endpoints themselves are
+  // not tested (the tower's own footprint and the target's tile are ignored).
+  function hasLineOfSight(x1, y1, x2, y2) {
+    const { cols, rows, ground } = mapRuntime;
+    const dx = x2 - x1, dy = y2 - y1;
+    const dist = Math.hypot(dx, dy);
+    if (dist === 0) return true;
+    const steps = Math.max(2, Math.ceil(dist * 4));
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      const tx = Math.floor(x1 + dx * t);
+      const ty = Math.floor(y1 + dy * t);
+      if (tx < 0 || tx >= cols || ty < 0 || ty >= rows) continue;
+      if (GROUND_BLOCKS_SIGHT[ground[ty * cols + tx]]) return false;
+    }
+    return true;
   }
 
   // === Tower helpers ===
@@ -329,7 +349,7 @@ export function createGame(opts) {
           if (dir === 4 && Math.abs(rx) < corridorW && ry >= 0 && ry <= eRange) inCorridor = true;
           if (dir === 2 && Math.abs(ry) < corridorW && rx >= 0 && rx <= eRange) inCorridor = true;
           if (dir === 6 && Math.abs(ry) < corridorW && rx >= -eRange && rx <= 0) inCorridor = true;
-          if (inCorridor) {
+          if (inCorridor && hasLineOfSight(ox, oy, m.x, m.y)) {
             applyDamage(m, eDmg, node.damageType, tower);
             if (node.speedFactor && node.speedFactor !== 1) applySpeedMod(m, node.speedFactor, node.speedDuration);
             hit = true;
@@ -351,6 +371,7 @@ export function createGame(opts) {
           }
           const d = distToTower(m.x, m.y, tower);
           if (d > eRange) continue;
+          if (!hasLineOfSight(ox, oy, m.x, m.y)) continue;
           const hasDot = !!m.dot;
           if ((!hasDot && nearestHasDot) || (hasDot === nearestHasDot && d < nearDist)) {
             nearDist = d; nearest = m; nearestHasDot = hasDot;
@@ -371,7 +392,9 @@ export function createGame(opts) {
             if (dx * fdx + dy * fdy <= 0) continue;
           }
           const d = distToTower(m.x, m.y, tower);
-          if (d < nearDist && d <= eRange) { nearDist = d; nearest = m; }
+          if (d >= nearDist || d > eRange) continue;
+          if (!hasLineOfSight(ox, oy, m.x, m.y)) continue;
+          nearDist = d; nearest = m;
         }
         if (!nearest) continue;
         tower.lastFire = state.frame;
@@ -402,10 +425,24 @@ export function createGame(opts) {
   }
 
   function updateProjectiles() {
+    const { cols, rows, ground } = mapRuntime;
     for (let i = state.projectiles.length - 1; i >= 0; i--) {
       const p = state.projectiles[i];
       p.x += p.vx;
       p.y += p.vy;
+
+      // Detonate on a blocks-sight tile (e.g. mountain).
+      const ptx = Math.floor(p.x);
+      const pty = Math.floor(p.y);
+      if (ptx >= 0 && ptx < cols && pty >= 0 && pty < rows &&
+          GROUND_BLOCKS_SIGHT[ground[pty * cols + ptx]]) {
+        const tn = p.towerNode;
+        if (tn.splashRadius && tn.splashRadius > 0) {
+          applySplash(p.x, p.y, tn.splashRadius, tn, null, p.tower);
+        }
+        state.projectiles.splice(i, 1);
+        continue;
+      }
 
       const dx = p.tx - p.x;
       const dy = p.ty - p.y;
