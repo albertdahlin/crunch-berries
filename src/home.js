@@ -110,7 +110,8 @@ export function createScreenManager({ canvas, renderer, hud }) {
     renderList('New Game — Pick Map', showNewGamePickCampaign, (body) => {
       listAllMaps().forEach(m => {
         const dims = m.cols + 'x' + m.rows;
-        const row = makeRow(m.name, dims + (m.id === EMPTY_MAP_ID ? ' — built-in' : ''),
+        const tag = m.id.indexOf('builtin:') === 0 ? ' — built-in' : '';
+        const row = makeRow(m.name, dims + tag,
           () => {
             if (newGameCampaign) startGame(m, newGameCampaign);
           });

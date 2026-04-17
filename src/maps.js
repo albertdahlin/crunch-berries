@@ -7,6 +7,11 @@ import { GROUND_GRASS, GROUND_ROAD } from './constants.js';
 /** Virtual "Empty Map" entry with a fixed id. */
 export const EMPTY_MAP_ID = 'builtin:empty';
 
+const MAPS_DIR = 'maps/';
+
+/** @type {MapDef[]} */
+let builtinCache = [];
+
 /** @returns {MapDef} */
 export function makeEmptyMap(cols = 15, rows = 15) {
   const data = new Array(cols * rows).fill(GROUND_GRASS);
@@ -17,14 +22,54 @@ export function makeEmptyMap(cols = 15, rows = 15) {
   return { id: EMPTY_MAP_ID, name: 'Empty', cols, rows, data };
 }
 
+/**
+ * Fetch the built-in map manifest (`maps/index.json`) and load each listed
+ * JSON file. Called once at startup; results cached for synchronous access.
+ * @returns {Promise<void>}
+ */
+export async function loadBuiltinMaps() {
+  try {
+    const idx = await fetch(MAPS_DIR + 'index.json', { cache: 'no-cache' });
+    if (!idx.ok) return;
+    const files = await idx.json();
+    if (!Array.isArray(files)) return;
+    const loaded = await Promise.all(files.map(async (fname) => {
+      try {
+        const res = await fetch(MAPS_DIR + fname, { cache: 'no-cache' });
+        if (!res.ok) return null;
+        const raw = await res.json();
+        if (!raw.data || !raw.cols || !raw.rows) return null;
+        const base = String(fname).replace(/\.json$/i, '');
+        /** @type {MapDef} */
+        const m = {
+          id: 'builtin:' + base,
+          name: raw.name || base,
+          cols: raw.cols,
+          rows: raw.rows,
+          data: Array.from(raw.data),
+        };
+        return m;
+      } catch (e) { return null; }
+    }));
+    builtinCache = loaded.filter(Boolean);
+  } catch (e) { /* offline / file:// — skip */ }
+}
+
+/** @returns {MapDef[]} */
+export function listBuiltinMaps() {
+  return [makeEmptyMap(), ...builtinCache];
+}
+
 /** @returns {MapDef[]} */
 export function listAllMaps() {
-  return [makeEmptyMap(), ...loadMaps()];
+  return [...listBuiltinMaps(), ...loadMaps()];
 }
 
 /** @param {string} id @returns {?MapDef} */
 export function getMapById(id) {
   if (id === EMPTY_MAP_ID) return makeEmptyMap();
+  const builtin = builtinCache.find(m => m.id === id);
+  if (builtin) return { ...builtin, data: [...builtin.data] };
   const found = loadMaps().find(m => m.id === id);
   return found || null;
 }
