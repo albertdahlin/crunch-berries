@@ -22,7 +22,7 @@ jobs:
       - name: Inject version number
         run: |
           VERSION=$(git rev-list --count HEAD)
-          sed -i "s/__VERSION__/$VERSION/" game.js
+          sed -i "s/__VERSION__/$VERSION/" src/constants.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
