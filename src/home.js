@@ -6,7 +6,8 @@
 /** @typedef {import('./types.js').Hud}       Hud */
 /** @typedef {import('./types.js').Game}      Game */
 
-import { VERSION, esc } from './constants.js';
+import { VERSION } from './constants.js';
+import { div, span, button, h1, h2 } from './html.js';
 import { createGame } from './game.js';
 import {
   BUILTIN_CAMPAIGNS,
@@ -75,34 +76,22 @@ export function createScreenManager({ canvas, renderer, hud }) {
     stopGame();
     hideAll();
     homeEl.innerHTML = '';
-    const h1 = document.createElement('h1');
-    h1.textContent = 'TOWER DEFENCE';
-    homeEl.appendChild(h1);
+    homeEl.appendChild(h1({}, ['TOWER DEFENCE']));
 
-    const list = document.createElement('div');
-    list.className = 'ms-list';
     const items = [
-      { title: 'New Game',        desc: 'Pick a campaign and a map',        to: '/new-game' },
-      { title: 'Load Game',       desc: 'Resume a saved game',              to: '/load-game' },
-      { title: 'Map Editor',      desc: 'Create and edit maps',             to: '/maps' },
-      { title: 'Campaign Editor', desc: 'Design towers, monsters, waves',   to: '/campaigns' },
-      { title: 'Settings',        desc: 'Audio, video, controls',           to: '/settings' },
+      { title: 'New Game',        desc: 'Pick a campaign and a map',       to: '/new-game'  },
+      { title: 'Load Game',       desc: 'Resume a saved game',             to: '/load-game' },
+      { title: 'Map Editor',      desc: 'Create and edit maps',            to: '/maps'      },
+      { title: 'Campaign Editor', desc: 'Design towers, monsters, waves',  to: '/campaigns' },
+      { title: 'Settings',        desc: 'Audio, video, controls',          to: '/settings'  },
     ];
-    items.forEach(it => {
-      const row = document.createElement('div');
-      row.className = 'ms-item';
-      row.innerHTML =
-        '<div class="ms-item-title">' + it.title + '</div>' +
-        '<div class="ms-item-desc">' + it.desc + '</div>';
-      row.addEventListener('click', () => router.navigate(it.to));
-      list.appendChild(row);
-    });
-    homeEl.appendChild(list);
-
-    const v = document.createElement('div');
-    v.className = 'ms-version';
-    v.textContent = 'v' + VERSION;
-    homeEl.appendChild(v);
+    homeEl.appendChild(div({ className: 'ms-list' }, items.map(it =>
+      div({ className: 'ms-item', onClick: () => router.navigate(it.to) }, [
+        div({ className: 'ms-item-title' }, [it.title]),
+        div({ className: 'ms-item-desc'  }, [it.desc]),
+      ]),
+    )));
+    homeEl.appendChild(div({ className: 'ms-version' }, ['v' + VERSION]));
     homeEl.style.display = 'flex';
   }
 
@@ -154,27 +143,25 @@ export function createScreenManager({ canvas, renderer, hud }) {
         return;
       }
       saves.forEach(s => {
-        const row = document.createElement('div');
-        row.className = 'ms-item ms-saved';
         const dateStr = new Date(s.savedAt).toLocaleString();
-        row.innerHTML =
-          '<div class="ms-saved-top">' +
-            '<span class="ms-item-title">' + esc(s.name) + '</span>' +
-            '<button class="ms-btn-del" title="Delete">\u00d7</button>' +
-          '</div>' +
-          '<div class="ms-item-desc">' + dateStr + ' — Tap to resume</div>';
-        row.addEventListener('click', (e) => {
-          if (/** @type {HTMLElement} */ (e.target).closest('.ms-btn-del')) return;
-          router.navigate('/resume/' + s.id);
-        });
-        const del = /** @type {HTMLElement} */ (row.querySelector('.ms-btn-del'));
-        del.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const remaining = loadSavedGames().filter(x => x.id !== s.id);
-          saveSavedGames(remaining);
-          renderLoadGame();
-        });
-        body.appendChild(row);
+        body.appendChild(div({
+          className: 'ms-item ms-saved',
+          onClick: () => router.navigate('/resume/' + s.id),
+        }, [
+          div({ className: 'ms-saved-top' }, [
+            span({ className: 'ms-item-title' }, [s.name]),
+            button({
+              className: 'ms-btn-del',
+              title: 'Delete',
+              onClick: (/** @type {MouseEvent} */ e) => {
+                e.stopPropagation();
+                saveSavedGames(loadSavedGames().filter(x => x.id !== s.id));
+                renderLoadGame();
+              },
+            }, ['\u00d7']),
+          ]),
+          div({ className: 'ms-item-desc' }, [dateStr + ' — Tap to resume']),
+        ]));
       });
     });
   }
@@ -192,20 +179,8 @@ export function createScreenManager({ canvas, renderer, hud }) {
 
       listAllMaps().forEach(m => {
         const isBuiltin = m.id.indexOf('builtin:') === 0;
-        const row = document.createElement('div');
-        row.className = 'ms-item ms-saved';
         const dims = m.cols + 'x' + m.rows;
-        const badge = isBuiltin ? ' [built-in]' : '';
-        const actionBtn = isBuiltin
-          ? '<button class="ms-btn-edit" title="Clone">\u29C9</button>'
-          : '<button class="ms-btn-edit" title="Edit">\u270E</button>';
-        row.innerHTML =
-          '<div class="ms-saved-top">' +
-            '<span class="ms-item-title">' + esc(m.name) + badge + '</span>' +
-            actionBtn +
-          '</div>' +
-          '<div class="ms-item-desc">' + dims + (isBuiltin ? ' — Tap to clone' : ' — Tap to edit') + '</div>';
-        row.addEventListener('click', () => {
+        const onOpen = () => {
           if (isBuiltin) {
             const copy = cloneMapForEdit(m);
             upsertUserMap(copy);
@@ -213,8 +188,19 @@ export function createScreenManager({ canvas, renderer, hud }) {
           } else {
             router.navigate('/maps/' + m.id);
           }
-        });
-        body.appendChild(row);
+        };
+        body.appendChild(div({ className: 'ms-item ms-saved', onClick: onOpen }, [
+          div({ className: 'ms-saved-top' }, [
+            span({ className: 'ms-item-title' }, [m.name + (isBuiltin ? ' [built-in]' : '')]),
+            button({
+              className: 'ms-btn-edit',
+              title: isBuiltin ? 'Clone' : 'Edit',
+            }, [isBuiltin ? '\u29C9' : '\u270E']),
+          ]),
+          div({ className: 'ms-item-desc' }, [
+            dims + (isBuiltin ? ' — Tap to clone' : ' — Tap to edit'),
+          ]),
+        ]));
       });
     });
   }
@@ -275,37 +261,38 @@ export function createScreenManager({ canvas, renderer, hud }) {
       body.appendChild(addRow);
 
       listAllCampaigns().forEach(c => {
-        const row = document.createElement('div');
-        row.className = 'ms-item ms-saved';
-        const badge = c.builtin ? ' [built-in]' : '';
-        row.innerHTML =
-          '<div class="ms-saved-top">' +
-            '<span class="ms-item-title">' + esc(c.name) + badge + '</span>' +
-            (c.builtin
-              ? '<button class="ms-btn-edit" title="Clone">\u29C9</button>'
-              : '<button class="ms-btn-del" title="Delete">\u00d7</button>') +
-          '</div>' +
-          '<div class="ms-item-desc">' + c.towers.length + ' towers · ' + c.monsters.length + ' monsters</div>';
-        row.addEventListener('click', (e) => {
-          const target = /** @type {HTMLElement} */ (e.target);
-          if (target.closest('.ms-btn-del')) return;
-          if (target.closest('.ms-btn-edit')) return;
-          router.navigate('/campaigns/' + c.id);
-        });
-        const del = row.querySelector('.ms-btn-del');
-        if (del) del.addEventListener('click', (e) => {
-          e.stopPropagation();
-          deleteUserCampaign(c.id);
-          renderCampaignList();
-        });
-        const clone = row.querySelector('.ms-btn-edit');
-        if (clone && c.builtin) clone.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const copy = cloneCampaignForEdit(c);
-          upsertUserCampaign(copy);
-          router.navigate('/campaigns/' + copy.id);
-        });
-        body.appendChild(row);
+        const actionBtn = c.builtin
+          ? button({
+              className: 'ms-btn-edit',
+              title: 'Clone',
+              onClick: (/** @type {MouseEvent} */ e) => {
+                e.stopPropagation();
+                const copy = cloneCampaignForEdit(c);
+                upsertUserCampaign(copy);
+                router.navigate('/campaigns/' + copy.id);
+              },
+            }, ['\u29C9'])
+          : button({
+              className: 'ms-btn-del',
+              title: 'Delete',
+              onClick: (/** @type {MouseEvent} */ e) => {
+                e.stopPropagation();
+                deleteUserCampaign(c.id);
+                renderCampaignList();
+              },
+            }, ['\u00d7']);
+        body.appendChild(div({
+          className: 'ms-item ms-saved',
+          onClick: () => router.navigate('/campaigns/' + c.id),
+        }, [
+          div({ className: 'ms-saved-top' }, [
+            span({ className: 'ms-item-title' },
+              [c.name + (c.builtin ? ' [built-in]' : '')]),
+            actionBtn,
+          ]),
+          div({ className: 'ms-item-desc' },
+            [c.towers.length + ' towers · ' + c.monsters.length + ' monsters']),
+        ]));
       });
     });
   }
@@ -331,44 +318,47 @@ export function createScreenManager({ canvas, renderer, hud }) {
     hideAll();
     settingsEl.style.display = 'flex';
     settingsEl.innerHTML = '';
-    const header = document.createElement('div');
-    header.className = 'screen-header';
-    const back = document.createElement('button');
-    back.textContent = '\u2190 Back';
-    back.addEventListener('click', () => router.navigate('/'));
-    header.appendChild(back);
-    const title = document.createElement('span');
-    title.className = 'screen-title';
-    title.textContent = 'Settings';
-    header.appendChild(title);
-    settingsEl.appendChild(header);
 
-    const body = document.createElement('div');
-    body.className = 'screen-body';
-    body.style.textAlign = 'center';
-    body.style.padding = '40px 16px';
-    body.style.color = '#666';
-    body.innerHTML = '<div style="font-size:18px;margin-bottom:8px">(coming soon)</div>' +
-      '<div style="font-size:13px">Audio, video, and control settings will live here.</div>';
-    settingsEl.appendChild(body);
+    settingsEl.appendChild(div({ className: 'screen-header' }, [
+      button({ onClick: () => router.navigate('/') }, ['\u2190 Back']),
+      span({ className: 'screen-title' }, ['Settings']),
+    ]));
 
-    const danger = document.createElement('div');
-    danger.className = 'screen-body';
-    danger.style.cssText = 'margin-top:32px;padding:16px;border-top:1px solid #333;text-align:center;max-width:400px;width:100%';
-    const clearBtn = document.createElement('button');
-    clearBtn.textContent = 'Clear all local data';
-    clearBtn.style.cssText = 'background:#4a1a1a;border:1px solid #f44336;color:#f44336;padding:10px 16px;font-family:monospace;font-size:14px;border-radius:4px;cursor:pointer';
-    clearBtn.addEventListener('click', () => {
-      if (!confirm('Delete all saved maps, campaigns, and saved games? This cannot be undone.')) return;
-      clearAllStorage();
-      location.reload();
-    });
-    const desc = document.createElement('div');
-    desc.style.cssText = 'font-size:12px;color:#555;margin-top:8px';
-    desc.textContent = 'Removes user maps, campaigns, and saved games from this browser.';
-    danger.appendChild(clearBtn);
-    danger.appendChild(desc);
-    settingsEl.appendChild(danger);
+    settingsEl.appendChild(div({
+      className: 'screen-body',
+      style: { textAlign: 'center', padding: '40px 16px', color: '#666' },
+    }, [
+      div({ style: { fontSize: '18px', marginBottom: '8px' } }, ['(coming soon)']),
+      div({ style: { fontSize: '13px' } },
+        ['Audio, video, and control settings will live here.']),
+    ]));
+
+    settingsEl.appendChild(div({
+      className: 'screen-body',
+      style: {
+        marginTop: '32px',
+        padding: '16px',
+        borderTop: '1px solid #333',
+        textAlign: 'center',
+        maxWidth: '400px',
+        width: '100%',
+      },
+    }, [
+      button({
+        style: {
+          background: '#4a1a1a', border: '1px solid #f44336', color: '#f44336',
+          padding: '10px 16px', fontFamily: 'monospace', fontSize: '14px',
+          borderRadius: '4px', cursor: 'pointer',
+        },
+        onClick: () => {
+          if (!confirm('Delete all saved maps, campaigns, and saved games? This cannot be undone.')) return;
+          clearAllStorage();
+          location.reload();
+        },
+      }, ['Clear all local data']),
+      div({ style: { fontSize: '12px', color: '#555', marginTop: '8px' } },
+        ['Removes user maps, campaigns, and saved games from this browser.']),
+    ]));
   }
 
   // --- Play ---
@@ -467,31 +457,20 @@ export function createScreenManager({ canvas, renderer, hud }) {
   // --- List screen helpers ---
   function renderList(title, backPath, fillBody) {
     listEl.innerHTML = '';
-    const header = document.createElement('div');
-    header.className = 'screen-header';
-    const back = document.createElement('button');
-    back.textContent = '\u2190 Back';
-    back.addEventListener('click', () => router.navigate(backPath));
-    header.appendChild(back);
-    const titleEl = document.createElement('span');
-    titleEl.className = 'screen-title';
-    titleEl.textContent = title;
-    header.appendChild(titleEl);
-    listEl.appendChild(header);
-    const body = document.createElement('div');
-    body.className = 'ms-list';
+    listEl.appendChild(div({ className: 'screen-header' }, [
+      button({ onClick: () => router.navigate(backPath) }, ['\u2190 Back']),
+      span({ className: 'screen-title' }, [title]),
+    ]));
+    const body = div({ className: 'ms-list' });
     fillBody(body);
     listEl.appendChild(body);
   }
 
   function makeRow(title, desc, onClick) {
-    const row = document.createElement('div');
-    row.className = 'ms-item';
-    row.innerHTML =
-      '<div class="ms-item-title">' + esc(title) + '</div>' +
-      (desc ? '<div class="ms-item-desc">' + esc(desc) + '</div>' : '');
-    row.addEventListener('click', onClick);
-    return row;
+    return div({ className: 'ms-item', onClick }, [
+      div({ className: 'ms-item-title' }, [title]),
+      desc ? div({ className: 'ms-item-desc' }, [desc]) : null,
+    ]);
   }
 
   return {

@@ -6,6 +6,7 @@
 /** @typedef {import('./types.js').Cursor}        Cursor */
 
 import { GROUND_GRASS, GROUND_ROAD, GROUND_TYPES } from './constants.js';
+import { button } from './html.js';
 import { buildMapRuntime } from './game.js';
 import { isTopRowReachable, recomputePath } from './pathfind.js';
 import {
@@ -57,16 +58,14 @@ export function openMapEditor(opts) {
 
   // Brush buttons
   brushEl.innerHTML = '';
-  for (let i = 0; i < GROUND_TYPES.length; i++) {
-    const gt = GROUND_TYPES[i];
-    const btn = document.createElement('button');
-    btn.textContent = (i + 1) + ' ' + gt.name;
-    btn.dataset.brush = String(i);
-    btn.style.borderColor = gt.bg;
-    if (i === overlay.brush) btn.classList.add('selected');
-    btn.addEventListener('click', () => selectBrush(i));
-    brushEl.appendChild(btn);
-  }
+  GROUND_TYPES.forEach((gt, i) => {
+    brushEl.appendChild(button({
+      'data-brush': i,
+      className: i === overlay.brush ? 'selected' : '',
+      style: { borderColor: gt.bg },
+      onClick: () => selectBrush(i),
+    }, [(i + 1) + ' ' + gt.name]));
+  });
   helpEl.textContent = GROUND_TYPES[overlay.brush].help;
 
   function selectBrush(i) {

@@ -65,7 +65,3 @@ export const ROT_NAMES = ['\u2191', '\u2192', '\u2193', '\u2190'];
 
 export function framesToSec(f) { return +(f / FPS).toFixed(2); }
 export function secToFrames(s) { return Math.round(s * FPS); }
-
-export function esc(s) {
-  return String(s).replace(/"/g, '&quot;').replace(/</g, '&lt;');
-}
