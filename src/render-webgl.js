@@ -193,7 +193,7 @@ export function createWebGLRenderer(canvas) {
         const hgt =
           gt.blocksSight    ? 1.5  :           // mountain
           gt.name === 'Water'  ? 0.08 :        // water sits low
-          gt.name === 'Forest' ? 0.55 :        // forest raised canopy
+          gt.name === 'Forest' ? 0.25 :        // forest slightly raised
                                  0.2;          // grass / road / swamp
         _pos.set(col + 0.5, hgt / 2, row + 0.5);
         _scl.set(0.98, hgt, 0.98);
