@@ -255,8 +255,8 @@ export function createWebGLRenderer(canvas) {
       const rot = t.rotation % 4;
       const dx = [0, 1, 0, -1][rot];
       const dz = [-1, 0, 1, 0][rot];
-      const barLen = Math.min(size.w, size.h) * 0.5;
-      const barY = 1.25;
+      const barLen = Math.min(size.w, size.h) * 0.3;
+      const barY = 0.5;
       const mat = lambertMat(node.color || '#fff');
 
       const bar = new THREE.Mesh(boxGeom, mat);
