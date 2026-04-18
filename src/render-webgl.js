@@ -193,7 +193,7 @@ export function createWebGLRenderer(canvas) {
         const hgt =
           gt.blocksSight    ? 1.5  :           // mountain
           gt.name === 'Water'  ? 0.08 :        // water sits low
-          gt.name === 'Forest' ? 0.25 :        // forest slightly raised
+          gt.name === 'Forest' ? 0.35 :        // forest slightly raised
                                  0.2;          // grass / road / swamp
         _pos.set(col + 0.5, hgt / 2, row + 0.5);
         _scl.set(0.98, hgt, 0.98);
@@ -273,10 +273,10 @@ export function createWebGLRenderer(canvas) {
 
       const range = node.range || 0;
       if (range > 0) {
-        const ring = new THREE.LineLoop(circleLineGeom, lineMat('#ffd700', { transparent: true, opacity: 0.6 }));
+        const ring = new THREE.LineLoop(circleLineGeom, lineMat('#ffd700', { transparent: true, opacity: 0.7 }));
         const r = range + Math.min(size.w, size.h) / 2;
         ring.scale.set(r, 1, r);
-        ring.position.y = 0.05;
+        ring.position.y = 0.3;  // above all walkable tiles (0.2) + forest (0.25)
         g.add(ring);
       }
     }
@@ -338,13 +338,18 @@ export function createWebGLRenderer(canvas) {
 
   function effectMesh(e) {
     if (e.type === 'circle') {
+      // Splash ring: filled annulus so it's visible at WebGL's 1-pixel line cap.
       const r = e.radius || 1;
       const t = Math.max(0, Math.min(1, e.ttl / 8));
-      const progress = 1 - t;
-      const ring = new THREE.LineLoop(circleLineGeom, lineMat(e.color, { transparent: true, opacity: t }));
-      ring.scale.set(r * progress, 1, r * progress);
-      ring.position.set(e.x, 0.15, e.y);
-      return ring;
+      const progress = Math.max(0.01, 1 - t);
+      const outer = r * progress;
+      const inner = Math.max(0.01, outer - Math.max(0.12, r * 0.18));
+      const geom = new THREE.RingGeometry(inner, outer, 48);
+      const mat = basicMat(e.color, { transparent: true, opacity: t, side: THREE.DoubleSide });
+      const mesh = new THREE.Mesh(geom, mat);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(e.x, 0.4, e.y);
+      return mesh;
     }
     const geom = new THREE.BufferGeometry();
     geom.setAttribute('position', new THREE.Float32BufferAttribute([
@@ -383,10 +388,10 @@ export function createWebGLRenderer(canvas) {
         ], 3));
         g.add(new THREE.Line(geom, lineMat(col, { transparent: true, opacity: 0.5 })));
       } else {
-        const ring = new THREE.LineLoop(circleLineGeom, lineMat(col, { transparent: true, opacity: 0.4 }));
+        const ring = new THREE.LineLoop(circleLineGeom, lineMat(col, { transparent: true, opacity: 0.45 }));
         const r = type.range + 1;
         ring.scale.set(r, 1, r);
-        ring.position.y = 0.05;
+        ring.position.y = 0.3;  // above walkable tiles + forest
         g.add(ring);
       }
     }
