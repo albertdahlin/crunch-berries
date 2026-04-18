@@ -1,7 +1,7 @@
 // @ts-check
 /** @typedef {import('./types.js').MapRuntime} MapRuntime */
 
-import { DX, DY, GROUND_WALKABLE, GROUND_SWAMP } from './constants.js';
+import { DX, DY, GROUND_TYPES, GROUND_SWAMP } from './constants.js';
 
 // Costs from BFS expand direction (monster moves opposite):
 //   expand up (0) => monster goes down => cheap (2)
@@ -54,7 +54,7 @@ export function computePath(runtime, tempGrid) {
 
   for (let x = 0; x < cols; x++) {
     const idx = (rows - 1) * cols + x;
-    if (g[idx] === 0 && GROUND_WALKABLE[ground[idx]]) {
+    if (g[idx] === 0 && GROUND_TYPES[ground[idx]].walkable) {
       dist[idx] = 0;
       heapPush(0, idx);
     }
@@ -73,12 +73,12 @@ export function computePath(runtime, tempGrid) {
       const ny = cy + DY[dir];
       if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
       const ni = ny * cols + nx;
-      if (g[ni] !== 0 || !GROUND_WALKABLE[ground[ni]]) continue;
+      if (g[ni] !== 0 || !GROUND_TYPES[ground[ni]].walkable) continue;
       if (dir % 2 === 1) {
         const adj1Idx = cy * cols + nx;
         const adj2Idx = ny * cols + cx;
-        if (g[adj1Idx] !== 0 || !GROUND_WALKABLE[ground[adj1Idx]] ||
-            g[adj2Idx] !== 0 || !GROUND_WALKABLE[ground[adj2Idx]]) continue;
+        if (g[adj1Idx] !== 0 || !GROUND_TYPES[ground[adj1Idx]].walkable ||
+            g[adj2Idx] !== 0 || !GROUND_TYPES[ground[adj2Idx]].walkable) continue;
       }
       let tileCost = DIR_COST[dir];
       if (ground[ni] === GROUND_SWAMP) tileCost *= 2;

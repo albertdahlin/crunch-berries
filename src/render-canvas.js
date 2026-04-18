@@ -6,11 +6,7 @@
 /** @typedef {import('./types.js').Cursor}      Cursor */
 /** @typedef {import('./types.js').EditorOverlay} EditorOverlay */
 
-import {
-  DX, DY,
-  GROUND_BG, GROUND_CHAR, GROUND_CHAR_COLOR, GROUND_WALKABLE,
-  GROUND_NAMES, GROUND_BUILDABLE,
-} from './constants.js';
+import { DX, DY, GROUND_TYPES } from './constants.js';
 import { getMergedNode, getTowerSize, getTowerNode } from './campaigns.js';
 
 /**
@@ -76,16 +72,16 @@ export function createCanvasRenderer(canvas) {
 
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
-        const gt = ground[y * cols + x];
+        const gt = GROUND_TYPES[ground[y * cols + x]];
         const px = x * TILE_SIZE;
         const py = y * TILE_SIZE;
 
-        ctx.fillStyle = GROUND_BG[gt];
+        ctx.fillStyle = gt.bg;
         ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
 
-        if (GROUND_CHAR[gt]) {
-          ctx.fillStyle = GROUND_CHAR_COLOR[gt];
-          ctx.fillText(GROUND_CHAR[gt], px + TILE_SIZE / 2, py + TILE_SIZE / 2);
+        if (gt.char) {
+          ctx.fillStyle = gt.charColor;
+          ctx.fillText(gt.char, px + TILE_SIZE / 2, py + TILE_SIZE / 2);
         }
       }
     }
@@ -107,12 +103,12 @@ export function createCanvasRenderer(canvas) {
 
     ctx.fillStyle = '#2a4a2a';
     for (let x = 0; x < cols; x++) {
-      if (GROUND_WALKABLE[ground[x]])
+      if (GROUND_TYPES[ground[x]].walkable)
         ctx.fillText('v', x * TILE_SIZE + TILE_SIZE / 2, TILE_SIZE / 2);
     }
     ctx.fillStyle = '#2a2a4a';
     for (let x = 0; x < cols; x++) {
-      if (GROUND_WALKABLE[ground[(rows - 1) * cols + x]])
+      if (GROUND_TYPES[ground[(rows - 1) * cols + x]].walkable)
         ctx.fillText('=', x * TILE_SIZE + TILE_SIZE / 2, (rows - 1) * TILE_SIZE + TILE_SIZE / 2);
     }
   }
@@ -385,7 +381,7 @@ export function createCanvasRenderer(canvas) {
     const py = cursor.y * TILE_SIZE;
     const sz = overlay.brushSize;
 
-    ctx.fillStyle = GROUND_BG[overlay.brush];
+    ctx.fillStyle = GROUND_TYPES[overlay.brush].bg;
     ctx.globalAlpha = 0.5;
     ctx.fillRect(px, py, TILE_SIZE * sz, TILE_SIZE * sz);
     ctx.globalAlpha = 1;
@@ -394,7 +390,7 @@ export function createCanvasRenderer(canvas) {
     ctx.lineWidth = 1;
     ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE * sz - 1, TILE_SIZE * sz - 1);
 
-    const name = GROUND_NAMES[overlay.brush];
+    const name = GROUND_TYPES[overlay.brush].name;
     if (name) {
       ctx.font = Math.floor(TILE_SIZE * 0.5) + 'px monospace';
       ctx.textAlign = 'center';
@@ -414,7 +410,7 @@ export function createCanvasRenderer(canvas) {
       for (let dx = 0; dx < size.w; dx++) {
         const idx = (ty + dy) * cols + (tx + dx);
         if (grid[idx] !== 0) return false;
-        if (!GROUND_BUILDABLE[ground[idx]]) return false;
+        if (!GROUND_TYPES[ground[idx]].buildable) return false;
       }
     }
     return true;

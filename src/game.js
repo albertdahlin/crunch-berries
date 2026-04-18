@@ -14,8 +14,7 @@
 import {
   FPS, TICK_RATE,
   DX, DY,
-  GROUND_GRASS, GROUND_ROAD,
-  GROUND_WALKABLE, GROUND_BUILDABLE, GROUND_SPEED_MULT, GROUND_BLOCKS_SIGHT,
+  GROUND_GRASS, GROUND_ROAD, GROUND_TYPES,
 } from './constants.js';
 import {
   getMergedNode, getTowerSize, getTowerNode, getWaveConfig,
@@ -152,7 +151,7 @@ export function createGame(opts) {
       const tx = Math.floor(x1 + dx * t);
       const ty = Math.floor(y1 + dy * t);
       if (tx < 0 || tx >= cols || ty < 0 || ty >= rows) continue;
-      if (GROUND_BLOCKS_SIGHT[ground[ty * cols + tx]]) return false;
+      if (GROUND_TYPES[ground[ty * cols + tx]].blocksSight) return false;
     }
     return true;
   }
@@ -176,7 +175,7 @@ export function createGame(opts) {
       for (let dx = 0; dx < size.w; dx++) {
         const idx = (ty + dy) * cols + (tx + dx);
         if (grid[idx] !== 0) return false;
-        if (!GROUND_BUILDABLE[ground[idx]]) return false;
+        if (!GROUND_TYPES[ground[idx]].buildable) return false;
       }
     }
     return true;
@@ -435,7 +434,7 @@ export function createGame(opts) {
       const ptx = Math.floor(p.x);
       const pty = Math.floor(p.y);
       if (ptx >= 0 && ptx < cols && pty >= 0 && pty < rows &&
-          GROUND_BLOCKS_SIGHT[ground[pty * cols + ptx]]) {
+          GROUND_TYPES[ground[pty * cols + ptx]].blocksSight) {
         const tn = p.towerNode;
         if (tn.splashRadius && tn.splashRadius > 0) {
           applySplash(p.x, p.y, tn.splashRadius, tn, null, p.tower);
@@ -474,10 +473,10 @@ export function createGame(opts) {
     const { cols, ground, pathDist } = mapRuntime;
     const candidates = [];
     for (let x = 0; x < cols; x++) {
-      if (pathDist && pathDist[x] !== -1 && GROUND_WALKABLE[ground[x]]) candidates.push(x);
+      if (pathDist && pathDist[x] !== -1 && GROUND_TYPES[ground[x]].walkable) candidates.push(x);
     }
     if (candidates.length === 0) {
-      for (let x = 0; x < cols; x++) if (GROUND_WALKABLE[ground[x]]) candidates.push(x);
+      for (let x = 0; x < cols; x++) if (GROUND_TYPES[ground[x]].walkable) candidates.push(x);
     }
     const sx = candidates[Math.floor(Math.random() * candidates.length)];
 
@@ -523,7 +522,7 @@ export function createGame(opts) {
 
       const idx = tileY * cols + tileX;
       const flow = pathFlow ? pathFlow[idx] : -1;
-      let speedMult = GROUND_SPEED_MULT[ground[idx]] || 1.0;
+      let speedMult = GROUND_TYPES[ground[idx]].speedMult || 1.0;
       if (m.speedMod) {
         speedMult *= m.speedMod.factor;
         m.speedMod.remaining--;

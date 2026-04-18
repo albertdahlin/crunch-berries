@@ -5,10 +5,7 @@
 /** @typedef {import('./types.js').EditorOverlay} EditorOverlay */
 /** @typedef {import('./types.js').Cursor}        Cursor */
 
-import {
-  GROUND_GRASS, GROUND_ROAD,
-  GROUND_NAMES, GROUND_BG, GROUND_HELP,
-} from './constants.js';
+import { GROUND_GRASS, GROUND_ROAD, GROUND_TYPES } from './constants.js';
 import { buildMapRuntime } from './game.js';
 import { isTopRowReachable, recomputePath } from './pathfind.js';
 import {
@@ -60,23 +57,24 @@ export function openMapEditor(opts) {
 
   // Brush buttons
   brushEl.innerHTML = '';
-  for (let i = 0; i < GROUND_NAMES.length; i++) {
+  for (let i = 0; i < GROUND_TYPES.length; i++) {
+    const gt = GROUND_TYPES[i];
     const btn = document.createElement('button');
-    btn.textContent = (i + 1) + ' ' + GROUND_NAMES[i];
+    btn.textContent = (i + 1) + ' ' + gt.name;
     btn.dataset.brush = String(i);
-    btn.style.borderColor = GROUND_BG[i];
+    btn.style.borderColor = gt.bg;
     if (i === overlay.brush) btn.classList.add('selected');
     btn.addEventListener('click', () => selectBrush(i));
     brushEl.appendChild(btn);
   }
-  helpEl.textContent = GROUND_HELP[overlay.brush];
+  helpEl.textContent = GROUND_TYPES[overlay.brush].help;
 
   function selectBrush(i) {
     overlay.brush = i;
     brushEl.querySelectorAll('button').forEach(b => {
       b.classList.toggle('selected', parseInt(b.dataset.brush || '-1') === i);
     });
-    helpEl.textContent = GROUND_HELP[i];
+    helpEl.textContent = GROUND_TYPES[i].help;
   }
 
   function paintAt(tx, ty) {
@@ -242,7 +240,7 @@ export function openMapEditor(opts) {
     const tag = document.activeElement && document.activeElement.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
     const n = parseInt(e.key);
-    if (n >= 1 && n <= GROUND_NAMES.length) { selectBrush(n - 1); e.preventDefault(); }
+    if (n >= 1 && n <= GROUND_TYPES.length) { selectBrush(n - 1); e.preventDefault(); }
   };
 
   canvas.addEventListener('mousemove', onMouseMove);
