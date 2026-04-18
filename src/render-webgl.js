@@ -247,22 +247,35 @@ export function createWebGLRenderer(canvas) {
     }
 
     if (node.attackDir === 'fixed') {
-      // rotation: 0=up(-Z), 1=right(+X), 2=down(+Z), 3=left(-X)
-      const arrow = new THREE.Mesh(coneGeom, lambertMat(node.color || '#fff'));
-      arrow.scale.set(0.6, 0.5, 0.6);
-      arrow.position.y = 0.6;
-      // Lay cone on its side (tip in +X by default), then rotate around Y.
-      arrow.rotation.z = -Math.PI / 2;
+      // rotation: 0=up(-Z), 1=right(+X), 2=down(+Z), 3=left(-X).
+      // Build a clearly-visible arrow hovering above the tower: a thin bar
+      // sticking out from centre in the firing direction, capped with a
+      // cone tip that points the same way. This is unambiguous from iso
+      // view even on pierce towers where the firing line matters.
       const rot = t.rotation % 4;
-      const yawForRot = rot === 0 ? Math.PI / 2 : rot === 1 ? 0 : rot === 2 ? -Math.PI / 2 : Math.PI;
-      arrow.rotation.y = yawForRot;
-      // Push arrow outward toward firing direction so it sticks off the tower.
-      const off = 0.1;
-      if (rot === 0) arrow.position.z -= off;
-      else if (rot === 1) arrow.position.x += off;
-      else if (rot === 2) arrow.position.z += off;
-      else arrow.position.x -= off;
-      g.add(arrow);
+      const dx = [0, 1, 0, -1][rot];
+      const dz = [-1, 0, 1, 0][rot];
+      const barLen = Math.min(size.w, size.h) * 0.5;
+      const barY = 1.25;
+      const mat = lambertMat(node.color || '#fff');
+
+      const bar = new THREE.Mesh(boxGeom, mat);
+      bar.scale.set(
+        dx !== 0 ? barLen : 0.1,
+        0.08,
+        dz !== 0 ? barLen : 0.1,
+      );
+      bar.position.set(dx * barLen / 2, barY, dz * barLen / 2);
+      g.add(bar);
+
+      const tip = new THREE.Mesh(coneGeom, mat);
+      tip.scale.set(0.55, 0.55, 0.55);
+      tip.quaternion.setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        new THREE.Vector3(dx, 0, dz),
+      );
+      tip.position.set(dx * (barLen + 0.2), barY, dz * (barLen + 0.2));
+      g.add(tip);
     }
 
     if (state.selectedPlacedTower === t) {
