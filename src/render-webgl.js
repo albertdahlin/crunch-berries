@@ -28,9 +28,11 @@ export function createWebGLRenderer(canvas) {
 
   const three = new THREE.WebGLRenderer({ canvas, antialias: true });
   three.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  three.toneMapping = THREE.ACESFilmicToneMapping;
+  three.toneMappingExposure = 1.35;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#0e0e1a');
+  scene.background = new THREE.Color('#161628');
 
   // True isometric: camera offset direction (1,1,1)/√3 gives yaw = 45° and
   // elevation = arcsin(1/√3) ≈ 35.264°. Orthographic projection is what makes
@@ -40,8 +42,11 @@ export function createWebGLRenderer(canvas) {
   camera.up.set(0, 1, 0);
   const cameraOffset = new THREE.Vector3(1, 1, 1).normalize().multiplyScalar(60);
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-  const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+  // Lighting: bright ambient so mid-tones read; hemisphere for soft fill;
+  // directional for shape definition without plunging the shadow side into black.
+  scene.add(new THREE.AmbientLight(0xffffff, 1.1));
+  scene.add(new THREE.HemisphereLight(0xbfd6ff, 0x3a2a1a, 0.55));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.9);
   sun.position.copy(cameraOffset);
   scene.add(sun);
 
@@ -60,6 +65,25 @@ export function createWebGLRenderer(canvas) {
     let m = lambertCache.get(key);
     if (!m) { m = new THREE.MeshLambertMaterial({ color: new THREE.Color(key) }); lambertCache.set(key, m); }
     return m;
+  }
+  // The ground-tile palette is tuned for a dark 2D canvas at tiny pixel sizes.
+  // Lit 3D tiles go nearly black with those hex values, so bias each tile's
+  // colour upward in HSL before handing it to Lambert shading. Entities use
+  // the campaign palette directly — already bright enough.
+  /** @type {Map<string, THREE.Color>} */
+  const brightTileCache = new Map();
+  function brightTileColor(hex) {
+    let c = brightTileCache.get(hex);
+    if (!c) {
+      c = new THREE.Color(hex);
+      const hsl = { h: 0, s: 0, l: 0 };
+      c.getHSL(hsl);
+      hsl.l = Math.min(0.55, hsl.l * 2.4 + 0.15);
+      hsl.s = Math.min(1, hsl.s * 1.1);
+      c.setHSL(hsl.h, hsl.s, hsl.l);
+      brightTileCache.set(hex, c);
+    }
+    return c;
   }
   /** @type {Map<string, THREE.MeshBasicMaterial>} */
   const basicCache = new Map();
@@ -162,7 +186,6 @@ export function createWebGLRenderer(canvas) {
     const _pos    = new THREE.Vector3();
     const _quat   = new THREE.Quaternion();
     const _scl    = new THREE.Vector3();
-    const _color  = new THREE.Color();
     for (let row = 0; row < map.rows; row++) {
       for (let col = 0; col < map.cols; col++) {
         const i = row * map.cols + col;
@@ -172,8 +195,7 @@ export function createWebGLRenderer(canvas) {
         _scl.set(0.98, hgt, 0.98);
         _matrix.compose(_pos, _quat, _scl);
         tileMesh.setMatrixAt(i, _matrix);
-        _color.set(gt.bg);
-        tileMesh.setColorAt(i, _color);
+        tileMesh.setColorAt(i, brightTileColor(gt.bg));
       }
     }
     tileMesh.instanceMatrix.needsUpdate = true;
