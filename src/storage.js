@@ -7,6 +7,7 @@ const KEY_CAMPAIGNS = 'td-campaigns';
 const KEY_MAPS      = 'td-maps';
 const KEY_SAVES     = 'td-saves';
 const KEY_LEGACY_CONFIG = 'td-config';
+const KEY_APP_SETTINGS  = 'td-app-settings';
 
 function readJson(key, fallback) {
   try {
@@ -87,10 +88,11 @@ export function newUserId(kind) {
   return (kind || 'user') + ':' + Date.now() + ':' + Math.floor(Math.random() * 1000);
 }
 
-/** Remove everything this app persists: campaigns, maps, saved games. */
+/** Remove everything this app persists: campaigns, maps, saved games, app settings. */
 export function clearAllStorage() {
   localStorage.removeItem(KEY_CAMPAIGNS);
   localStorage.removeItem(KEY_MAPS);
   localStorage.removeItem(KEY_SAVES);
   localStorage.removeItem(KEY_LEGACY_CONFIG);
+  localStorage.removeItem(KEY_APP_SETTINGS);
 }

@@ -7,7 +7,7 @@
 /** @typedef {import('./types.js').Game}      Game */
 
 import { VERSION } from './constants.js';
-import { div, span, button, h1, h2 } from './html.js';
+import { div, span, button, h1, h2, label, input } from './html.js';
 import { createGame } from './game.js';
 import {
   BUILTIN_CAMPAIGNS,
@@ -26,6 +26,7 @@ import {
   upsertUserMap,
 } from './maps.js';
 import { loadSavedGames, saveSavedGames, newUserId, clearAllStorage } from './storage.js';
+import { loadAppSettings, saveAppSettings } from './app-settings.js';
 import { openMapEditor } from './edit-map.js';
 import { openCampaignEditor } from './edit-campaign.js';
 import { createRouter } from './router.js';
@@ -312,7 +313,7 @@ export function createScreenManager({ canvas, renderer, hud }) {
     openCampaignEditor({ campaignId, onExit: () => router.navigate('/campaigns') });
   }
 
-  // --- Settings (empty placeholder) ---
+  // --- Settings ---
   function renderSettingsScreen() {
     stopGame();
     hideAll();
@@ -324,13 +325,35 @@ export function createScreenManager({ canvas, renderer, hud }) {
       span({ className: 'screen-title' }, ['Settings']),
     ]));
 
-    settingsEl.appendChild(div({
-      className: 'screen-body',
-      style: { textAlign: 'center', padding: '40px 16px', color: '#666' },
-    }, [
-      div({ style: { fontSize: '18px', marginBottom: '8px' } }, ['(coming soon)']),
-      div({ style: { fontSize: '13px' } },
-        ['Audio, video, and control settings will live here.']),
+    const current = loadAppSettings();
+    const pickRenderer = (type) => {
+      if (type === current.rendererType) return;
+      saveAppSettings({ rendererType: type });
+      location.reload();
+    };
+
+    settingsEl.appendChild(div({ className: 'settings-group' }, [
+      h2({ style: { color: '#81d4fa', fontSize: '14px', marginBottom: '8px' } }, ['Renderer']),
+      label({}, [
+        input({
+          type: 'radio', name: 'rendererType', value: 'canvas',
+          checked: current.rendererType === 'canvas',
+          onChange: () => pickRenderer('canvas'),
+        }),
+        'Canvas (default)',
+      ]),
+      div({ className: 'settings-hint' }, ['2D top-down view, reliably fast.']),
+      label({}, [
+        input({
+          type: 'radio', name: 'rendererType', value: 'webgl',
+          checked: current.rendererType === 'webgl',
+          onChange: () => pickRenderer('webgl'),
+        }),
+        'WebGL (experimental)',
+      ]),
+      div({ className: 'settings-hint' }, [
+        'Isometric 3D via Three.js. Drag to pan, scroll to zoom. Still in development.',
+      ]),
     ]));
 
     settingsEl.appendChild(div({
@@ -357,7 +380,7 @@ export function createScreenManager({ canvas, renderer, hud }) {
         },
       }, ['Clear all local data']),
       div({ style: { fontSize: '12px', color: '#555', marginTop: '8px' } },
-        ['Removes user maps, campaigns, and saved games from this browser.']),
+        ['Removes user maps, campaigns, saved games, and app settings from this browser.']),
     ]));
   }
 

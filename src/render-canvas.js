@@ -357,21 +357,17 @@ export function createCanvasRenderer(canvas) {
 
   /** @param {GameState} state */
   function drawGameOver(state) {
-    if (state.phase !== 'GAMEOVER') return;
-    const goFont = Math.floor(TILE_SIZE * 1.5);
-    const smallFont = Math.max(10, Math.floor(TILE_SIZE * 0.7));
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-    ctx.font = 'bold ' + goFont + 'px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#f44336';
-    ctx.fillText('GAME OVER', CANVAS_W / 2, CANVAS_H / 2 - TILE_SIZE * 1.5);
-    ctx.font = smallFont + 'px monospace';
-    ctx.fillStyle = '#ccc';
-    ctx.fillText('Score: ' + state.score, CANVAS_W / 2, CANVAS_H / 2);
-    ctx.fillStyle = '#888';
-    ctx.fillText('Tap menu to quit', CANVAS_W / 2, CANVAS_H / 2 + TILE_SIZE * 1.5);
+    // Game-over is rendered via a shared HTML overlay (#game-over) so both
+    // renderers behave identically and text scales with the viewport.
+    const el = document.getElementById('game-over');
+    if (!el) return;
+    if (state.phase === 'GAMEOVER') {
+      el.style.display = 'flex';
+      const scoreEl = document.getElementById('game-over-score');
+      if (scoreEl) scoreEl.textContent = 'Score: ' + state.score;
+    } else {
+      el.style.display = 'none';
+    }
   }
 
   /** @param {Cursor} cursor @param {EditorOverlay} overlay */

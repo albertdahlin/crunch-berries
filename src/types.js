@@ -265,4 +265,11 @@
  * @property {string} savedAt
  */
 
+/** @typedef {'canvas'|'webgl'} RendererType */
+
+/**
+ * @typedef {Object} AppSettings
+ * @property {RendererType} rendererType
+ */
+
 export {};

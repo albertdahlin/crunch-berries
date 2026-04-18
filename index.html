@@ -465,6 +465,66 @@ canvas {
   font-family: monospace;
   font-size: 14px;
 }
+
+/* Game-over overlay (shared by all renderers) */
+#game-over {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(0, 0, 0, 0.6);
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  pointer-events: none;
+  font-family: monospace;
+}
+#game-over .go-title {
+  color: #f44336;
+  font-size: 36px;
+  font-weight: bold;
+  margin-bottom: 16px;
+}
+#game-over .go-score {
+  color: #ccc;
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+#game-over .go-hint {
+  color: #888;
+  font-size: 13px;
+}
+
+/* Settings screen form blocks */
+.settings-group {
+  width: 100%;
+  max-width: 400px;
+  padding: 16px;
+  border-top: 1px solid #333;
+  margin-top: 16px;
+}
+.settings-group h3 {
+  color: #81d4fa;
+  font-size: 14px;
+  margin-bottom: 8px;
+  text-align: left;
+}
+.settings-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ccc;
+  font-size: 13px;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+.settings-group label input[type="radio"] { cursor: pointer; }
+.settings-group .settings-hint {
+  color: #666;
+  font-size: 11px;
+  margin-left: 26px;
+  margin-bottom: 4px;
+}
 </style>
 </head>
 <body>
@@ -482,6 +542,16 @@ canvas {
 <div id="screen-settings"></div>
 
 <canvas id="game"></canvas>
+
+<div id="game-over">
+  <div class="go-title">GAME OVER</div>
+  <div class="go-score" id="game-over-score">Score: 0</div>
+  <div class="go-hint">Tap Home to quit</div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://esm.sh/three@0.160.0" } }
+</script>
 
 <div id="ui">
   <div id="tower-info" style="display:none;width:100%;text-align:center;font-family:monospace">
