@@ -30,9 +30,14 @@ export function createWebGLRenderer(canvas) {
   three.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   three.toneMapping = THREE.ACESFilmicToneMapping;
   three.toneMappingExposure = 1.35;
+  three.shadowMap.enabled = true;
+  three.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#161628');
+  const FOG_COLOR = '#161628';
+  scene.background = new THREE.Color(FOG_COLOR);
+  // Subtle exp² fog to hint depth and soften the scene's far edges.
+  scene.fog = new THREE.FogExp2(FOG_COLOR, 0.008);
 
   // True isometric: camera offset direction (1,1,1)/√3 gives yaw = 45° and
   // elevation = arcsin(1/√3) ≈ 35.264°. Orthographic projection is what makes
@@ -43,12 +48,27 @@ export function createWebGLRenderer(canvas) {
   const cameraOffset = new THREE.Vector3(1, 1, 1).normalize().multiplyScalar(60);
 
   // Lighting: bright ambient so mid-tones read; hemisphere for soft fill;
-  // directional for shape definition without plunging the shadow side into black.
-  scene.add(new THREE.AmbientLight(0xffffff, 1.1));
-  scene.add(new THREE.HemisphereLight(0xbfd6ff, 0x3a2a1a, 0.55));
-  const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+  // directional for shape definition + shadow casting.
+  scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+  scene.add(new THREE.HemisphereLight(0xbfd6ff, 0x3a2a1a, 0.45));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.85);
   sun.position.copy(cameraOffset);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left   = -30;
+  sun.shadow.camera.right  =  30;
+  sun.shadow.camera.top    =  30;
+  sun.shadow.camera.bottom = -30;
+  sun.shadow.camera.near   =  1;
+  sun.shadow.camera.far    =  160;
+  sun.shadow.bias = -0.0008;
+  sun.shadow.normalBias = 0.02;
   scene.add(sun);
+  // A tracked target lets the shadow frustum follow camera panning without
+  // moving the sun's world direction (shadows stay at the same angle).
+  const sunTarget = new THREE.Object3D();
+  scene.add(sunTarget);
+  sun.target = sunTarget;
 
   const tileRoot   = new THREE.Group(); scene.add(tileRoot);
   const entityRoot = new THREE.Group(); scene.add(entityRoot);
@@ -116,6 +136,34 @@ export function createWebGLRenderer(canvas) {
   [boxGeom, cylinderGeom, headGeom, coneGeom, sphereGeom, circleLineGeom, boxEdgesGeom]
     .forEach(g => SHARED_GEOM.add(g));
 
+  // Edges for shared geometries, built lazily and cached. Threshold=30° hides
+  // smooth sphere/cylinder radial edges while keeping silhouette / sharp
+  // angles visible.
+  const OUTLINE_COLOR = '#0a0a14';
+  /** @type {WeakMap<any, any>} */
+  const edgesCache = new WeakMap();
+  function getEdges(geom) {
+    let eg = edgesCache.get(geom);
+    if (!eg) {
+      eg = new THREE.EdgesGeometry(geom, 30);
+      edgesCache.set(geom, eg);
+      SHARED_GEOM.add(eg);  // never dispose — shared across frames
+    }
+    return eg;
+  }
+  /**
+   * Make a mesh and parent a matching edge-outline to it. Outline scales /
+   * rotates with the parent, giving a consistent "deliberate low-poly" look.
+   */
+  function outlinedMesh(geom, material) {
+    const mesh = new THREE.Mesh(geom, material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    const outline = new THREE.LineSegments(getEdges(geom), lineMat(OUTLINE_COLOR));
+    mesh.add(outline);
+    return mesh;
+  }
+
   function makeCircleLineGeom(radius, segments) {
     const g = new THREE.BufferGeometry();
     const pts = [];
@@ -141,6 +189,12 @@ export function createWebGLRenderer(canvas) {
     camera.position.set(t.x + cameraOffset.x, cameraOffset.y, t.z + cameraOffset.z);
     camera.lookAt(t.x, 0, t.z);
     camera.updateMatrixWorld();
+    // Keep sun offset constant relative to the camera target so shadows stay
+    // aligned while the player pans.
+    sun.position.set(t.x + cameraOffset.x, cameraOffset.y, t.z + cameraOffset.z);
+    sunTarget.position.set(t.x, 0, t.z);
+    sunTarget.updateMatrixWorld();
+    sun.shadow.camera.updateProjectionMatrix();
   }
 
   function resize() {
@@ -182,6 +236,8 @@ export function createWebGLRenderer(canvas) {
     const count = map.cols * map.rows;
     // Clone geometry and material so this mesh owns them for its lifetime.
     tileMesh = new THREE.InstancedMesh(boxGeom, lambertMat('#ffffff'), count);
+    tileMesh.castShadow = true;
+    tileMesh.receiveShadow = true;
     const _matrix = new THREE.Matrix4();
     const _pos    = new THREE.Vector3();
     const _quat   = new THREE.Quaternion();
@@ -223,12 +279,12 @@ export function createWebGLRenderer(canvas) {
     const g = new THREE.Group();
     g.position.set(t.x + size.w / 2, 0, t.y + size.h / 2);
 
-    const base = new THREE.Mesh(boxGeom, lambertMat(node.bg || '#444'));
+    const base = outlinedMesh(boxGeom, lambertMat(node.bg || '#444'));
     base.scale.set(size.w * 0.9, 0.4, size.h * 0.9);
     base.position.y = 0.2;
     g.add(base);
 
-    const top = new THREE.Mesh(coneGeom, lambertMat(node.color || '#fff'));
+    const top = outlinedMesh(coneGeom, lambertMat(node.color || '#fff'));
     top.position.y = 0.4 + 0.35;
     g.add(top);
 
@@ -259,7 +315,7 @@ export function createWebGLRenderer(canvas) {
       const barY = 0.5;
       const mat = lambertMat(node.color || '#fff');
 
-      const bar = new THREE.Mesh(boxGeom, mat);
+      const bar = outlinedMesh(boxGeom, mat);
       bar.scale.set(
         dx !== 0 ? barLen : 0.1,
         0.08,
@@ -268,7 +324,7 @@ export function createWebGLRenderer(canvas) {
       bar.position.set(dx * barLen / 2, barY, dz * barLen / 2);
       g.add(bar);
 
-      const tip = new THREE.Mesh(coneGeom, mat);
+      const tip = outlinedMesh(coneGeom, mat);
       tip.scale.set(0.55, 0.55, 0.55);
       tip.quaternion.setFromUnitVectors(
         new THREE.Vector3(0, 1, 0),
@@ -302,12 +358,13 @@ export function createWebGLRenderer(canvas) {
     g.position.set(m.x, 0, m.y);
     const scale = m.renderScale || 1;
 
-    const body = new THREE.Mesh(cylinderGeom, lambertMat(m.color));
+    const body = outlinedMesh(cylinderGeom, lambertMat(m.color));
     body.scale.set(scale, scale, scale);
     body.position.y = 0.3 * scale;
     g.add(body);
 
     const head = new THREE.Mesh(headGeom, lambertMat(m.color));
+    head.castShadow = true;
     head.scale.set(scale, scale, scale);
     head.position.y = 0.65 * scale;
     g.add(head);
@@ -344,6 +401,7 @@ export function createWebGLRenderer(canvas) {
 
   function projectileMesh(p) {
     const mesh = new THREE.Mesh(sphereGeom, lambertMat(p.color));
+    mesh.castShadow = true;
     mesh.scale.set(0.16, 0.16, 0.16);
     mesh.position.set(p.x, 0.7, p.y);
     return mesh;
