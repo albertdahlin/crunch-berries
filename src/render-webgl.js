@@ -73,8 +73,8 @@ export function createWebGLRenderer(canvas) {
   const tileRoot   = new THREE.Group(); scene.add(tileRoot);
   const entityRoot = new THREE.Group(); scene.add(entityRoot);
 
-  /** @type {?THREE.InstancedMesh} */
-  let tileMesh = null;
+  /** @type {THREE.InstancedMesh[]} one per distinct ground type present in the map */
+  const tileMeshes = [];
   const mapCache = { cols: 0, rows: 0, /** @type {?Uint8Array} */ ground: null };
 
   // --- Caches ---
@@ -227,17 +227,74 @@ export function createWebGLRenderer(canvas) {
     resize();
   }
 
-  function rebuildTileMesh(map) {
-    if (tileMesh) {
-      tileRoot.remove(tileMesh);
-      tileMesh.dispose();
-      tileMesh = null;
+  // --- Procedural tile textures ---
+  // One small canvas-generated texture per ground type. The base colour is
+  // pre-baked into the texture (via brightTileColor), so tile materials no
+  // longer need per-instance colouring.
+  /** @type {Map<number, THREE.MeshLambertMaterial>} */
+  const tileMatCache = new Map();
+  function getTileMaterial(typeId) {
+    let m = tileMatCache.get(typeId);
+    if (!m) {
+      const gt = GROUND_TYPES[typeId] || GROUND_TYPES[0];
+      const tex = makeTileTexture(gt);
+      m = new THREE.MeshLambertMaterial({ map: tex });
+      tileMatCache.set(typeId, m);
     }
-    const count = map.cols * map.rows;
-    // Clone geometry and material so this mesh owns them for its lifetime.
-    tileMesh = new THREE.InstancedMesh(boxGeom, lambertMat('#ffffff'), count);
-    tileMesh.castShadow = true;
-    tileMesh.receiveShadow = true;
+    return m;
+  }
+
+  function makeTileTexture(gt) {
+    const size = 64;
+    const canvas2d = document.createElement('canvas');
+    canvas2d.width = canvas2d.height = size;
+    const ctx = canvas2d.getContext('2d');
+    const base = brightTileColor(gt.bg);
+    ctx.fillStyle = hex(base);
+    ctx.fillRect(0, 0, size, size);
+    // Per-type overlay pattern.
+    switch (gt.name) {
+      case 'Grass':    drawGrass(ctx, size, base); break;
+      case 'Road':     drawRoad(ctx, size, base); break;
+      case 'Water':    drawWater(ctx, size, base); break;
+      case 'Swamp':    drawSwamp(ctx, size, base); break;
+      case 'Forest':   drawForest(ctx, size, base); break;
+      case 'Mountain': drawMountain(ctx, size, base); break;
+    }
+    const tex = new THREE.CanvasTexture(canvas2d);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.anisotropy = three.capabilities.getMaxAnisotropy();
+    return tex;
+  }
+
+  function rebuildTileMesh(map) {
+    // Dispose old meshes + their materials (texture stays cached in tileMatCache).
+    for (const m of tileMeshes) {
+      tileRoot.remove(m);
+      m.dispose();
+    }
+    tileMeshes.length = 0;
+
+    // Count tiles per ground type so each InstancedMesh gets a tight size.
+    /** @type {Map<number, number>} */
+    const countByType = new Map();
+    for (let i = 0; i < map.cols * map.rows; i++) {
+      const t = map.ground[i];
+      countByType.set(t, (countByType.get(t) || 0) + 1);
+    }
+
+    /** @type {Map<number, THREE.InstancedMesh>} */
+    const meshByType = new Map();
+    for (const [typeId, count] of countByType) {
+      const mesh = new THREE.InstancedMesh(boxGeom, getTileMaterial(typeId), count);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.count = 0;  // we'll fill in via setMatrixAt and bump count per write
+      meshByType.set(typeId, mesh);
+      tileMeshes.push(mesh);
+      tileRoot.add(mesh);
+    }
+
     const _matrix = new THREE.Matrix4();
     const _pos    = new THREE.Vector3();
     const _quat   = new THREE.Quaternion();
@@ -245,22 +302,23 @@ export function createWebGLRenderer(canvas) {
     for (let row = 0; row < map.rows; row++) {
       for (let col = 0; col < map.cols; col++) {
         const i = row * map.cols + col;
-        const gt = GROUND_TYPES[map.ground[i]] || GROUND_TYPES[0];
+        const typeId = map.ground[i];
+        const gt = GROUND_TYPES[typeId] || GROUND_TYPES[0];
         const hgt =
-          gt.blocksSight    ? 1.5  :           // mountain
+          gt.blocksSight       ? 1.5  :        // mountain
           gt.name === 'Water'  ? 0.08 :        // water sits low
           gt.name === 'Forest' ? 0.35 :        // forest slightly raised
                                  0.2;          // grass / road / swamp
         _pos.set(col + 0.5, hgt / 2, row + 0.5);
         _scl.set(0.98, hgt, 0.98);
         _matrix.compose(_pos, _quat, _scl);
-        tileMesh.setMatrixAt(i, _matrix);
-        tileMesh.setColorAt(i, brightTileColor(gt.bg));
+        const mesh = meshByType.get(typeId);
+        if (!mesh) continue;
+        mesh.setMatrixAt(mesh.count, _matrix);
+        mesh.count++;
       }
     }
-    tileMesh.instanceMatrix.needsUpdate = true;
-    if (tileMesh.instanceColor) tileMesh.instanceColor.needsUpdate = true;
-    tileRoot.add(tileMesh);
+    for (const m of tileMeshes) m.instanceMatrix.needsUpdate = true;
   }
 
   function clearEntities() {
@@ -504,7 +562,7 @@ export function createWebGLRenderer(canvas) {
   // --- Renderer interface ---
 
   function renderGame(state, map, campaign) {
-    if (map.cols !== mapCache.cols || map.rows !== mapCache.rows || !tileMesh) {
+    if (map.cols !== mapCache.cols || map.rows !== mapCache.rows || tileMeshes.length === 0) {
       setGridSize(map.cols, map.rows);
       mapCache.ground = map.ground;
       rebuildTileMesh(map);
@@ -580,6 +638,124 @@ export function createWebGLRenderer(canvas) {
   return {
     renderGame, renderEditor, resize, clientToTile, getDimensions, clear, setGridSize,
   };
+}
+
+// --- Tile texture drawing helpers ---
+// Each function stamps a pattern on a canvas 2d context filled with the
+// brightened base colour. Patterns are deterministic (Math.random is fine —
+// textures are generated once per ground type, per session).
+
+function hex(c) { return '#' + c.getHexString(); }
+
+function shadeColor(c, amt) {
+  const hsl = { h: 0, s: 0, l: 0 };
+  c.getHSL(hsl);
+  hsl.l = Math.max(0, Math.min(1, hsl.l + amt));
+  // Reuse the Color prototype via a temp.
+  const o = c.clone();
+  o.setHSL(hsl.h, hsl.s, hsl.l);
+  return hex(o);
+}
+
+function drawGrass(ctx, size, base) {
+  ctx.fillStyle = shadeColor(base, -0.1);
+  for (let i = 0; i < 140; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    ctx.fillRect(x, y, 1, 1 + Math.random() * 2);
+  }
+  ctx.fillStyle = shadeColor(base, 0.1);
+  for (let i = 0; i < 40; i++) {
+    ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
+  }
+}
+
+function drawRoad(ctx, size, base) {
+  // Tire-track style bands + gritty noise.
+  ctx.strokeStyle = shadeColor(base, -0.15);
+  ctx.lineWidth = 1;
+  for (let y = 10; y < size; y += 14) {
+    ctx.beginPath();
+    ctx.moveTo(0, y + Math.random());
+    ctx.lineTo(size, y + Math.random());
+    ctx.stroke();
+  }
+  ctx.fillStyle = shadeColor(base, -0.08);
+  for (let i = 0; i < 80; i++) {
+    ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
+  }
+}
+
+function drawWater(ctx, size, base) {
+  // Scatter small ripple arcs.
+  ctx.strokeStyle = shadeColor(base, 0.22);
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 16; i++) {
+    const cx = Math.random() * size;
+    const cy = Math.random() * size;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 1 + Math.random() * 2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // Faint highlight specks.
+  ctx.fillStyle = shadeColor(base, 0.3);
+  for (let i = 0; i < 20; i++) {
+    ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
+  }
+}
+
+function drawSwamp(ctx, size, base) {
+  ctx.fillStyle = shadeColor(base, -0.12);
+  for (let i = 0; i < 10; i++) {
+    const r = 2 + Math.random() * 4;
+    ctx.beginPath();
+    ctx.arc(Math.random() * size, Math.random() * size, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = shadeColor(base, 0.08);
+  for (let i = 0; i < 30; i++) {
+    ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
+  }
+}
+
+function drawForest(ctx, size, base) {
+  // Dense clusters of canopy circles.
+  for (let i = 0; i < 22; i++) {
+    const r = 3 + Math.random() * 3;
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    ctx.fillStyle = shadeColor(base, -0.15);
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = shadeColor(base, 0.12);
+    ctx.beginPath();
+    ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawMountain(ctx, size, base) {
+  // Jagged cracks.
+  ctx.strokeStyle = shadeColor(base, -0.22);
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 8; i++) {
+    let x = Math.random() * size;
+    let y = Math.random() * size;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    for (let j = 0; j < 3; j++) {
+      x += (Math.random() - 0.5) * 14;
+      y += (Math.random() - 0.5) * 14;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  // Highlight flecks (snow / glint).
+  ctx.fillStyle = shadeColor(base, 0.25);
+  for (let i = 0; i < 20; i++) {
+    ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
+  }
 }
 
 // --- Shared DOM overlays (both renderers use these) ---
