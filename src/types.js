@@ -220,6 +220,7 @@
  * @property {() => void}        onSell
  * @property {() => void}        onPlace
  * @property {() => void}        onBestiary
+ * @property {(s: number) => void} onSetSpeed
  * @property {() => void}        onSave
  * @property {() => void}        onQuit
  * @property {(i: number) => void} onSelectTowerType

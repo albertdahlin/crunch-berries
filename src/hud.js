@@ -24,6 +24,7 @@ export function createHud() {
   const btnSell  = /** @type {HTMLButtonElement} */ (document.getElementById('btn-sell'));
   const btnRotate = /** @type {HTMLButtonElement} */ (document.getElementById('btn-rotate'));
   const btnBestiary = /** @type {HTMLButtonElement} */ (document.getElementById('btn-bestiary'));
+  const btnSpeed = /** @type {HTMLButtonElement} */ (document.getElementById('btn-speed'));
   const btnSave  = /** @type {HTMLButtonElement} */ (document.getElementById('btn-save'));
   const btnHome  = /** @type {HTMLButtonElement} */ (document.getElementById('btn-home'));
   const towerBtns = /** @type {HTMLElement} */ (document.getElementById('tower-buttons'));
@@ -47,6 +48,12 @@ export function createHud() {
     if (!lastState || !lastCampaign) return;
     toggleBestiary(lastState, lastCampaign);
   });
+  let currentSpeed = 1;
+  btnSpeed.addEventListener('click', () => {
+    currentSpeed = currentSpeed === 1 ? 5 : 1;
+    btnSpeed.textContent = currentSpeed + 'x';
+    handlers.onSetSpeed(currentSpeed);
+  });
   if (btnSave) btnSave.addEventListener('click', () => handlers.onSave());
   if (btnHome) btnHome.addEventListener('click', () => handlers.onQuit());
 
@@ -57,6 +64,8 @@ export function createHud() {
   function hide() {
     hudEl.style.display = 'none';
     uiEl.style.display = 'none';
+    currentSpeed = 1;
+    btnSpeed.textContent = '1x';
     closeBestiary();
   }
 
@@ -132,6 +141,7 @@ export function createHud() {
     btnPlace.style.display  = hasSel ? 'none' : '';
     btnWave.style.display   = hasSel ? 'none' : '';
     btnBestiary.style.display = hasSel ? 'none' : '';
+    btnSpeed.style.display   = hasSel ? 'none' : '';
     if (btnSave) btnSave.style.display = hasSel ? 'none' : '';
     if (btnHome) btnHome.style.display = hasSel ? 'none' : '';
 
@@ -204,6 +214,7 @@ function emptyHandlers() {
     onSell: noop,
     onPlace: noop,
     onBestiary: noop,
+    onSetSpeed: noop,
     onSave: noop,
     onQuit: noop,
     onSelectTowerType: noop,

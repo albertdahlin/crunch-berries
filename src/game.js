@@ -710,15 +710,20 @@ export function createGame(opts) {
   let lastTime = 0;
   let accumulator = 0;
   let rafId = 0;
+  let speedMultiplier = 1;
   function loop(ts) {
     if (!running) return;
     const dt = ts - lastTime;
     lastTime = ts;
-    accumulator += dt;
-    while (accumulator >= TICK_RATE) {
+    accumulator += dt * speedMultiplier;
+    const maxTicks = 10 * speedMultiplier;
+    let ticks = 0;
+    while (accumulator >= TICK_RATE && ticks < maxTicks) {
       update();
       accumulator -= TICK_RATE;
+      ticks++;
     }
+    if (accumulator > TICK_RATE) accumulator = TICK_RATE;
     renderer.renderGame(state, mapRuntime, campaign);
     hud.update(state, campaign);
     rafId = requestAnimationFrame(loop);
@@ -733,6 +738,7 @@ export function createGame(opts) {
       onSell: sellTower,
       onPlace: () => { state.cursor.visible = true; placeTower(); },
       onBestiary: () => {},
+      onSetSpeed: (s) => { speedMultiplier = s; },
       onSelectTowerType: selectTowerType,
       onUpgrade: upgradeTower,
       onHoverUpgrade: () => {},
