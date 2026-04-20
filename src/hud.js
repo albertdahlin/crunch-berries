@@ -6,7 +6,7 @@
 /** @typedef {import('./types.js').TowerDef}    TowerDef */
 
 import { VERSION, FPS, DAMAGE_TYPES, ROT_NAMES, framesToSec } from './constants.js';
-import { getMergedNode, getTowerNode, getTowerSize } from './campaigns.js';
+import { getMergedNode, getTowerNode, getTowerSize, isTowerUnlocked } from './campaigns.js';
 import { div, span, button } from './html.js';
 
 /** @returns {Hud} */
@@ -85,6 +85,7 @@ export function createHud() {
     lastCampaign = campaign;
     towerBtns.innerHTML = '';
     campaign.towers.forEach((t, i) => {
+      if (!isTowerUnlocked(campaign.waves, i, state.wave)) return;
       let label = (i + 1) + ': ' + t.name + ' (' + t.cost + 'g)';
       if (t.attackDir === 'fixed') {
         label += ' ' + ROT_NAMES[state.selectedTower === i ? state.placeRotation : 0];
@@ -98,6 +99,14 @@ export function createHud() {
         onClick: () => handlers.onSelectTowerType(i),
       }, [label]));
     });
+    if (state.selectedTower >= 0 && !isTowerUnlocked(campaign.waves, state.selectedTower, state.wave)) {
+      for (let i = 0; i < campaign.towers.length; i++) {
+        if (isTowerUnlocked(campaign.waves, i, state.wave)) {
+          handlers.onSelectTowerType(i);
+          return;
+        }
+      }
+    }
     if (!state.selectedPlacedTower) showTowerPreview(campaign.towers[state.selectedTower]);
   }
 

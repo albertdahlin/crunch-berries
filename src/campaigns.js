@@ -59,11 +59,22 @@ export const CLASSIC_CAMPAIGN = {
   waves: {
     baseCounts: [5, 3, 2, 8, 1, 2],
     unlockWave: [1, 1, 3, 2, 4, 5],
+    unlockTower: [1, 2, 1],
     scaleEvery: 2,
     hpScale: 20,
     intervalStart: 40,
     intervalDecay: 3,
     intervalMin: 10,
+    script: [
+      { wave: 1, lore: 'Goblins creep from the forest. Ready your soldiers!' },
+      { wave: 2, lore: 'Wolves howl in the distance. A mage could slow them down.', bonus: 5 },
+      { wave: 3, lore: 'Armored knights march forth. Steel resists blades \u2014 try fire.', bonus: 5 },
+      { wave: 4, lore: 'The sky darkens with bats. Lightning will thin the swarm.' },
+      { wave: 5, lore: 'The ground shakes. A troll approaches...', bonus: 10 },
+      { wave: 6, lore: 'Shades slip through the shadows. Only steel can touch them.' },
+      { wave: 8, lore: 'The horde doubles. Hold the line!', bonus: 15 },
+      { wave: 10, lore: 'A war horn sounds. Endless waves crash against your walls.', bonus: 20 },
+    ],
   },
   game: {
     startGold: 50,
@@ -154,17 +165,35 @@ export function getMergedNode(root, path) {
   return merged;
 }
 
+/** @param {import('./types.js').WaveConfig} waves @param {number} waveNum */
+export function getWaveScript(waves, waveNum) {
+  const s = waves.script;
+  if (!s) return null;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i].wave === waveNum) return s[i];
+  }
+  return null;
+}
+
+/** @param {import('./types.js').WaveConfig} waves @param {number} towerIdx @param {number} currentWave */
+export function isTowerUnlocked(waves, towerIdx, currentWave) {
+  const unlock = (waves.unlockTower && waves.unlockTower[towerIdx]) || 1;
+  return (currentWave + 1) >= unlock;
+}
+
 /** @param {import('./types.js').WaveConfig} waves @param {import('./types.js').MonsterDef[]} monsters @param {number} waveNum */
 export function getWaveConfig(waves, monsters, waveNum) {
+  const script = getWaveScript(waves, waveNum);
   const scale = Math.pow(2, Math.floor((waveNum - 1) / waves.scaleEvery));
   const counts = monsters.map((_, i) => {
+    if (script && script.monsters && script.monsters[i] !== undefined) return script.monsters[i];
     const base = (waves.baseCounts[i] || 1);
     const unlock = (waves.unlockWave[i] || 1);
     return waveNum >= unlock ? Math.round(base * scale) : 0;
   });
   const interval = Math.max(waves.intervalMin, waves.intervalStart - (waveNum - 1) * waves.intervalDecay);
   const hpMult = 1 + (waveNum - 1) * (waves.hpScale || 0) / 100;
-  return { counts, interval, hpMult };
+  return { counts, interval, hpMult, lore: script && script.lore, bonus: script && script.bonus };
 }
 
 function deepCopy(v) { return JSON.parse(JSON.stringify(v)); }

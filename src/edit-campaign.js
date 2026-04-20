@@ -37,7 +37,9 @@ export function openCampaignEditor(opts) {
 
   const towersDiv   = /** @type {HTMLElement} */ (document.getElementById('settings-towers'));
   const monstersDiv = /** @type {HTMLElement} */ (document.getElementById('settings-monsters'));
+  const waveTowersDiv = /** @type {HTMLElement} */ (document.getElementById('settings-wave-towers'));
   const wavesDiv    = /** @type {HTMLElement} */ (document.getElementById('settings-wave-monsters'));
+  const scriptDiv   = /** @type {HTMLElement} */ (document.getElementById('settings-wave-script'));
 
   /** @type {{type: ?('tower'|'monster'), index: number}} */
   let detailState = { type: null, index: -1 };
@@ -74,6 +76,16 @@ export function openCampaignEditor(opts) {
   }
 
   function populateWaveFields() {
+    waveTowersDiv.innerHTML = '';
+    campaign.towers.forEach((t, i) => {
+      waveTowersDiv.appendChild(div({ className: 'cfg-row' }, [
+        span({ style: { color: t.color || '#ccc' } }, [t.name]),
+        label({}, [
+          'Unlock ', helpBtn('Wave when this tower becomes available'), ' ',
+          input({ type: 'number', className: 'tw-unlock', min: 1, value: (campaign.waves.unlockTower && campaign.waves.unlockTower[i]) || 1 }),
+        ]),
+      ]));
+    });
     wavesDiv.innerHTML = '';
     campaign.monsters.forEach((m, i) => {
       wavesDiv.appendChild(div({ className: 'cfg-row' }, [
@@ -93,6 +105,42 @@ export function openCampaignEditor(opts) {
     setInputValue('cfg-intervalStart', framesToSec(campaign.waves.intervalStart));
     setInputValue('cfg-intervalDecay', framesToSec(campaign.waves.intervalDecay));
     setInputValue('cfg-intervalMin',   framesToSec(campaign.waves.intervalMin));
+    populateWaveScript();
+  }
+
+  function populateWaveScript() {
+    scriptDiv.innerHTML = '';
+    const script = campaign.waves.script || [];
+    script.forEach((s, i) => {
+      const loreInput = input({
+        type: 'text', className: 'ws-lore', value: s.lore || '',
+        placeholder: 'Lore text...',
+        style: { flex: '1', minWidth: '120px', padding: '4px 6px', background: '#1a1a2a', color: '#ccc', border: '1px solid #444', borderRadius: '3px', fontFamily: 'monospace', fontSize: '12px' },
+      });
+      const removeBtn = button({
+        className: 'cfg-remove',
+        style: { padding: '2px 8px' },
+        onClick: () => { readWaveScript(); campaign.waves.script.splice(i, 1); populateWaveScript(); },
+      }, ['X']);
+      scriptDiv.appendChild(div({ className: 'cfg-row', style: { flexWrap: 'wrap', gap: '4px' } }, [
+        label({}, ['Wave ', input({ type: 'number', className: 'ws-wave', min: 1, value: s.wave || 1, style: { width: '40px' } })]),
+        label({}, ['Bonus ', helpBtn('Extra gold awarded for completing this wave'), ' ', input({ type: 'number', className: 'ws-bonus', min: 0, value: s.bonus || 0, style: { width: '40px' } })]),
+        loreInput,
+        removeBtn,
+      ]));
+    });
+  }
+
+  function readWaveScript() {
+    const rows = scriptDiv.querySelectorAll('.cfg-row');
+    campaign.waves.script = Array.from(rows).map(d => {
+      const entry = { wave: +(/** @type {HTMLInputElement} */(d.querySelector('.ws-wave'))).value || 1 };
+      const lore = (/** @type {HTMLInputElement} */(d.querySelector('.ws-lore'))).value.trim();
+      if (lore) entry.lore = lore;
+      const bonus = +(/** @type {HTMLInputElement} */(d.querySelector('.ws-bonus'))).value || 0;
+      if (bonus) entry.bonus = bonus;
+      return entry;
+    }).filter(e => e.lore || e.bonus);
   }
 
   function listItem(color, letter, name, onClick) {
@@ -238,6 +286,7 @@ export function openCampaignEditor(opts) {
     if (type === 'tower') {
       if (campaign.towers.length <= 1) return;
       campaign.towers.splice(index, 1);
+      if (campaign.waves.unlockTower) campaign.waves.unlockTower.splice(index, 1);
     } else if (type === 'monster') {
       if (campaign.monsters.length <= 1) return;
       campaign.monsters.splice(index, 1);
@@ -248,6 +297,9 @@ export function openCampaignEditor(opts) {
   }
 
   function readCampaignFromForm() {
+    const towerDivs = waveTowersDiv.querySelectorAll('.cfg-row');
+    campaign.waves.unlockTower = Array.from(towerDivs).map(d =>
+      +(/** @type {HTMLInputElement} */(d.querySelector('.tw-unlock'))).value || 1);
     const baseDivs = wavesDiv.querySelectorAll('.cfg-row');
     campaign.waves.baseCounts = Array.from(baseDivs).map(d =>
       +(/** @type {HTMLInputElement} */(d.querySelector('.wv-base'))).value || 0);
@@ -258,6 +310,7 @@ export function openCampaignEditor(opts) {
     campaign.waves.intervalStart = secToFrames(getInputNumber('cfg-intervalStart', 1.33));
     campaign.waves.intervalDecay = secToFrames(getInputNumber('cfg-intervalDecay', 0.1));
     campaign.waves.intervalMin   = secToFrames(getInputNumber('cfg-intervalMin', 0.33));
+    readWaveScript();
 
     campaign.game.startGold         = getInputNumber('cfg-startGold', 50);
     campaign.game.startLives        = getInputNumber('cfg-startLives', 20);
@@ -348,6 +401,8 @@ export function openCampaignEditor(opts) {
   const onAddTower = () => {
     readCampaignFromForm();
     campaign.towers.push({ name: 'New', letter: 'X', color: '#ffffff', bg: '#444444', range: 2, damage: 1, fireRate: 30, cost: 10, hp: 5, damageType: 'physical', sizeW: 2, sizeH: 2 });
+    if (!campaign.waves.unlockTower) campaign.waves.unlockTower = [];
+    campaign.waves.unlockTower.push(1);
     openDetail('tower', campaign.towers.length - 1);
   };
   const onAddMonster = () => {
@@ -372,8 +427,17 @@ export function openCampaignEditor(opts) {
     }
   };
 
+  const addScriptBtn  = /** @type {HTMLButtonElement} */ (document.getElementById('btn-add-wave-script'));
+  const onAddScript = () => {
+    readWaveScript();
+    if (!campaign.waves.script) campaign.waves.script = [];
+    campaign.waves.script.push({ wave: campaign.waves.script.length + 1, lore: '' });
+    populateWaveScript();
+  };
+
   addTowerBtn.addEventListener('click', onAddTower);
   addMonsterBtn.addEventListener('click', onAddMonster);
+  addScriptBtn.addEventListener('click', onAddScript);
   backBtn.addEventListener('click', onBackBtn);
   saveBtn.addEventListener('click', onSaveBtn);
   resetBtn.addEventListener('click', onResetBtn);
@@ -386,6 +450,7 @@ export function openCampaignEditor(opts) {
   function destroy() {
     addTowerBtn.removeEventListener('click', onAddTower);
     addMonsterBtn.removeEventListener('click', onAddMonster);
+    addScriptBtn.removeEventListener('click', onAddScript);
     backBtn.removeEventListener('click', onBackBtn);
     saveBtn.removeEventListener('click', onSaveBtn);
     resetBtn.removeEventListener('click', onResetBtn);

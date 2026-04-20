@@ -53,11 +53,13 @@
  * @typedef {Object} WaveConfig
  * @property {number[]} baseCounts
  * @property {number[]} unlockWave
+ * @property {number[]} [unlockTower]
  * @property {number}   scaleEvery
  * @property {number}   hpScale          Percent per wave
  * @property {number}   intervalStart    Frames
  * @property {number}   intervalDecay    Frames
  * @property {number}   intervalMin      Frames
+ * @property {Array<{wave:number, lore?:string, bonus?:number, monsters?:Object}>} [script]
  */
 
 /**

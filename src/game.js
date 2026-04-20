@@ -17,7 +17,7 @@ import {
   GROUND_GRASS, GROUND_ROAD, GROUND_TYPES,
 } from './constants.js';
 import {
-  getMergedNode, getTowerSize, getTowerNode, getWaveConfig,
+  getMergedNode, getTowerSize, getTowerNode, getWaveConfig, getWaveScript, isTowerUnlocked,
 } from './campaigns.js';
 import {
   recomputePath, isTopRowReachable,
@@ -89,9 +89,9 @@ export function createGame(opts) {
     selectedPlacedTower: null,
   };
 
-  function showMessage(msg) {
+  function showMessage(msg, duration) {
     state.message = msg;
-    state.messageTimer = FPS * 2;
+    state.messageTimer = duration || FPS * 2;
     hud.flash(msg);
   }
 
@@ -290,7 +290,7 @@ export function createGame(opts) {
   }
 
   function selectTowerType(idx) {
-    if (idx < 0 || idx >= campaign.towers.length) return;
+    if (idx < 0 || idx >= campaign.towers.length || !isTowerUnlocked(campaign.waves, idx, state.wave)) return;
     const t = campaign.towers[idx];
     const sw = t.sizeW || 2, sh = t.sizeH || 2;
     if (state.selectedTower === idx && (sw !== sh || t.attackDir === 'fixed')) {
@@ -612,10 +612,12 @@ export function createGame(opts) {
     hud.refreshSelection(state, campaign);
     state.wave++;
     const w = getWaveConfig(campaign.waves, campaign.monsters, state.wave);
+    if (w.lore) showMessage(w.lore, FPS * 4);
     w.counts.forEach((count, i) => {
       for (let j = 0; j < count; j++) spawnMonster(i, w.hpMult);
     });
     state.phase = 'WAVE';
+    hud.rebuildTowerButtons(state, campaign);
     requestWakeLock();
   }
 
@@ -624,8 +626,12 @@ export function createGame(opts) {
     if (state.monsters.length === 0) {
       state.phase = 'PLACE';
       releaseWakeLock();
-      state.gold += campaign.game.waveBonusGold;
-      showMessage('Wave ' + state.wave + ' complete! +' + campaign.game.waveBonusGold + 'g');
+      var bonus = campaign.game.waveBonusGold;
+      const script = getWaveScript(campaign.waves, state.wave);
+      if (script && script.bonus) bonus += script.bonus;
+      state.gold += bonus;
+      showMessage('Wave ' + state.wave + ' complete! +' + bonus + 'g');
+      hud.rebuildTowerButtons(state, campaign);
     }
   }
 
