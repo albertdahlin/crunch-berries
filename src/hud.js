@@ -85,7 +85,7 @@ export function createHud() {
     lastCampaign = campaign;
     towerBtns.innerHTML = '';
     campaign.towers.forEach((t, i) => {
-      if (!isTowerUnlocked(campaign.waves, i, state.wave)) return;
+      if (!isTowerUnlocked(campaign.waves, t, state.wave)) return;
       let label = (i + 1) + ': ' + t.name + ' (' + t.cost + 'g)';
       if (t.attackDir === 'fixed') {
         label += ' ' + ROT_NAMES[state.selectedTower === i ? state.placeRotation : 0];
@@ -99,9 +99,9 @@ export function createHud() {
         onClick: () => handlers.onSelectTowerType(i),
       }, [label]));
     });
-    if (state.selectedTower >= 0 && !isTowerUnlocked(campaign.waves, state.selectedTower, state.wave)) {
+    if (state.selectedTower >= 0 && !isTowerUnlocked(campaign.waves, campaign.towers[state.selectedTower], state.wave)) {
       for (let i = 0; i < campaign.towers.length; i++) {
-        if (isTowerUnlocked(campaign.waves, i, state.wave)) {
+        if (isTowerUnlocked(campaign.waves, campaign.towers[i], state.wave)) {
           handlers.onSelectTowerType(i);
           return;
         }
@@ -250,9 +250,10 @@ function toggleBestiary(state, campaign) {
   const nextWave = state.phase === 'PLACE' ? waveNum + 1 : waveNum;
   const hpMult = 1 + (waveNum - 1) * (campaign.waves.hpScale || 0) / 100;
 
+  const list = campaign.waves.list || [];
   const rows = campaign.monsters.map((m, i) => {
-    const unlock = (campaign.waves.unlockWave[i] || 1);
-    if (nextWave < unlock) return null;
+    const visible = list.slice(0, nextWave).some(e => e.monsters && e.monsters[m.id] > 0);
+    if (!visible) return null;
 
     const scaledHp = Math.round(m.hp * hpMult);
     const spd = +(m.speed * FPS).toFixed(1);

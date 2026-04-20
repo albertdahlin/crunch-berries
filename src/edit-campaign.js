@@ -7,10 +7,10 @@ import {
 } from './constants.js';
 import {
   getCampaignById, upsertUserCampaign, deleteUserCampaign, cloneCampaignForEdit,
-  getConfigNode, getMergedNode,
+  getConfigNode, getMergedNode, ensureCampaignIds,
 } from './campaigns.js';
 import {
-  div, span, button, label, input, select, option, fieldset, legend,
+  div, span, button, label, input, select, option, fieldset, legend, textarea,
 } from './html.js';
 
 let activeController = null;
@@ -37,11 +37,9 @@ export function openCampaignEditor(opts) {
 
   const towersDiv   = /** @type {HTMLElement} */ (document.getElementById('settings-towers'));
   const monstersDiv = /** @type {HTMLElement} */ (document.getElementById('settings-monsters'));
-  const waveTowersDiv = /** @type {HTMLElement} */ (document.getElementById('settings-wave-towers'));
-  const wavesDiv    = /** @type {HTMLElement} */ (document.getElementById('settings-wave-monsters'));
-  const scriptDiv   = /** @type {HTMLElement} */ (document.getElementById('settings-wave-script'));
+  const wavesDiv    = /** @type {HTMLElement} */ (document.getElementById('settings-waves'));
 
-  /** @type {{type: ?('tower'|'monster'), index: number}} */
+  /** @type {{type: ?('tower'|'monster'|'wave'), index: number}} */
   let detailState = { type: null, index: -1 };
   let treePath = /** @type {number[]} */ ([]);
 
@@ -68,79 +66,38 @@ export function openCampaignEditor(opts) {
     campaign.monsters.forEach((m, i) => {
       monstersDiv.appendChild(listItem(m.color, m.letter, m.name, () => openDetail('monster', i)));
     });
-    populateWaveFields();
+    populateWaveList();
+    setInputValue('cfg-scaleEvery',    campaign.waves.scaleEvery);
+    setInputValue('cfg-hpScale',       campaign.waves.hpScale ?? 20);
+    setInputValue('cfg-intervalStart', framesToSec(campaign.waves.intervalStart));
+    setInputValue('cfg-intervalDecay', framesToSec(campaign.waves.intervalDecay));
+    setInputValue('cfg-intervalMin',   framesToSec(campaign.waves.intervalMin));
     setInputValue('cfg-startGold',         campaign.game.startGold);
     setInputValue('cfg-startLives',        campaign.game.startLives);
     setInputValue('cfg-waveBonusGold',     campaign.game.waveBonusGold);
     setInputValue('cfg-sellRefundPercent', campaign.game.sellRefundPercent);
   }
 
-  function populateWaveFields() {
-    waveTowersDiv.innerHTML = '';
-    campaign.towers.forEach((t, i) => {
-      waveTowersDiv.appendChild(div({ className: 'cfg-row' }, [
-        span({ style: { color: t.color || '#ccc' } }, [t.name]),
-        label({}, [
-          'Unlock ', helpBtn('Wave when this tower becomes available'), ' ',
-          input({ type: 'number', className: 'tw-unlock', min: 1, value: (campaign.waves.unlockTower && campaign.waves.unlockTower[i]) || 1 }),
-        ]),
-      ]));
-    });
+  function populateWaveList() {
     wavesDiv.innerHTML = '';
-    campaign.monsters.forEach((m, i) => {
-      wavesDiv.appendChild(div({ className: 'cfg-row' }, [
-        span({ style: { color: m.color } }, [m.name]),
-        label({}, [
-          'Count ', helpBtn('Base spawns per wave. Doubled every N waves'), ' ',
-          input({ type: 'number', className: 'wv-base', min: 0, value: campaign.waves.baseCounts[i] || 0 }),
-        ]),
-        label({}, [
-          'Unlock ', helpBtn('First wave this monster appears'), ' ',
-          input({ type: 'number', className: 'wv-unlock', min: 1, value: campaign.waves.unlockWave[i] || 1 }),
-        ]),
-      ]));
-    });
-    setInputValue('cfg-scaleEvery',    campaign.waves.scaleEvery);
-    setInputValue('cfg-hpScale',       campaign.waves.hpScale ?? 20);
-    setInputValue('cfg-intervalStart', framesToSec(campaign.waves.intervalStart));
-    setInputValue('cfg-intervalDecay', framesToSec(campaign.waves.intervalDecay));
-    setInputValue('cfg-intervalMin',   framesToSec(campaign.waves.intervalMin));
-    populateWaveScript();
-  }
-
-  function populateWaveScript() {
-    scriptDiv.innerHTML = '';
-    const script = campaign.waves.script || [];
-    script.forEach((s, i) => {
-      const loreInput = input({
-        type: 'text', className: 'ws-lore', value: s.lore || '',
-        placeholder: 'Lore text...',
-        style: { flex: '1', minWidth: '120px', padding: '4px 6px', background: '#1a1a2a', color: '#ccc', border: '1px solid #444', borderRadius: '3px', fontFamily: 'monospace', fontSize: '12px' },
-      });
-      const removeBtn = button({
-        className: 'cfg-remove',
-        style: { padding: '2px 8px' },
-        onClick: () => { readWaveScript(); campaign.waves.script.splice(i, 1); populateWaveScript(); },
-      }, ['X']);
-      scriptDiv.appendChild(div({ className: 'cfg-row', style: { flexWrap: 'wrap', gap: '4px' } }, [
-        label({}, ['Wave ', input({ type: 'number', className: 'ws-wave', min: 1, value: s.wave || 1, style: { width: '40px' } })]),
-        label({}, ['Bonus ', helpBtn('Extra gold awarded for completing this wave'), ' ', input({ type: 'number', className: 'ws-bonus', min: 0, value: s.bonus || 0, style: { width: '40px' } })]),
-        loreInput,
-        removeBtn,
-      ]));
+    const list = campaign.waves.list || [];
+    list.forEach((w, i) => {
+      const summary = summarizeWave(w);
+      wavesDiv.appendChild(listItem('#888', String(i + 1), 'Wave ' + (i + 1) + ': ' + summary, () => openDetail('wave', i)));
     });
   }
 
-  function readWaveScript() {
-    const rows = scriptDiv.querySelectorAll('.cfg-row');
-    campaign.waves.script = Array.from(rows).map(d => {
-      const entry = { wave: +(/** @type {HTMLInputElement} */(d.querySelector('.ws-wave'))).value || 1 };
-      const lore = (/** @type {HTMLInputElement} */(d.querySelector('.ws-lore'))).value.trim();
-      if (lore) entry.lore = lore;
-      const bonus = +(/** @type {HTMLInputElement} */(d.querySelector('.ws-bonus'))).value || 0;
-      if (bonus) entry.bonus = bonus;
-      return entry;
-    }).filter(e => e.lore || e.bonus);
+  function summarizeWave(entry) {
+    const parts = [];
+    if (entry.monsters) {
+      for (const [id, count] of Object.entries(entry.monsters)) {
+        if (count > 0) {
+          const m = campaign.monsters.find(m => m.id === id);
+          parts.push(count + ' ' + (m ? m.name : id));
+        }
+      }
+    }
+    return parts.length > 0 ? parts.join(', ') : '(empty)';
   }
 
   function listItem(color, letter, name, onClick) {
@@ -161,9 +118,13 @@ export function openCampaignEditor(opts) {
     if (type === 'tower') {
       treePath = [];
       renderTowerTreeNode(index, []);
-    } else {
+    } else if (type === 'monster') {
       detailTitle.textContent = 'Monster: ' + campaign.monsters[index].name;
       detailBody.appendChild(createMonsterFields(campaign.monsters[index]));
+    } else if (type === 'wave') {
+      const entry = campaign.waves.list[index];
+      detailTitle.textContent = 'Wave ' + (index + 1);
+      detailBody.appendChild(createWaveFields(entry, index, campaign));
     }
   }
 
@@ -270,12 +231,20 @@ export function openCampaignEditor(opts) {
     if (upgrades) node.upgrades = upgrades;
   }
 
+  function saveWaveFormToEntry(index) {
+    const formDiv = detailBody.querySelector('.cfg-item');
+    if (!formDiv) return;
+    campaign.waves.list[index] = readWaveFromForm(/** @type {HTMLElement} */ (formDiv));
+  }
+
   function closeDetail() {
     const { type, index } = detailState;
     if (type === 'tower') saveTowerFormToNode();
     else if (type === 'monster') {
       const formDiv = detailBody.querySelector('.cfg-item');
       if (formDiv) campaign.monsters[index] = readMonsterFromForm(/** @type {HTMLElement} */ (formDiv));
+    } else if (type === 'wave') {
+      saveWaveFormToEntry(index);
     }
     treePath = [];
     showList();
@@ -286,31 +255,22 @@ export function openCampaignEditor(opts) {
     if (type === 'tower') {
       if (campaign.towers.length <= 1) return;
       campaign.towers.splice(index, 1);
-      if (campaign.waves.unlockTower) campaign.waves.unlockTower.splice(index, 1);
     } else if (type === 'monster') {
       if (campaign.monsters.length <= 1) return;
       campaign.monsters.splice(index, 1);
-      campaign.waves.baseCounts.splice(index, 1);
-      campaign.waves.unlockWave.splice(index, 1);
+    } else if (type === 'wave') {
+      if (campaign.waves.list.length <= 1) return;
+      campaign.waves.list.splice(index, 1);
     }
     showList();
   }
 
   function readCampaignFromForm() {
-    const towerDivs = waveTowersDiv.querySelectorAll('.cfg-row');
-    campaign.waves.unlockTower = Array.from(towerDivs).map(d =>
-      +(/** @type {HTMLInputElement} */(d.querySelector('.tw-unlock'))).value || 1);
-    const baseDivs = wavesDiv.querySelectorAll('.cfg-row');
-    campaign.waves.baseCounts = Array.from(baseDivs).map(d =>
-      +(/** @type {HTMLInputElement} */(d.querySelector('.wv-base'))).value || 0);
-    campaign.waves.unlockWave = Array.from(baseDivs).map(d =>
-      +(/** @type {HTMLInputElement} */(d.querySelector('.wv-unlock'))).value || 1);
     campaign.waves.scaleEvery    = getInputNumber('cfg-scaleEvery', 2);
     campaign.waves.hpScale       = getInputNumber('cfg-hpScale', 0);
     campaign.waves.intervalStart = secToFrames(getInputNumber('cfg-intervalStart', 1.33));
     campaign.waves.intervalDecay = secToFrames(getInputNumber('cfg-intervalDecay', 0.1));
     campaign.waves.intervalMin   = secToFrames(getInputNumber('cfg-intervalMin', 0.33));
-    readWaveScript();
 
     campaign.game.startGold         = getInputNumber('cfg-startGold', 50);
     campaign.game.startLives        = getInputNumber('cfg-startLives', 20);
@@ -326,6 +286,8 @@ export function openCampaignEditor(opts) {
     } else if (detailState.type === 'monster') {
       const formDiv = detailBody.querySelector('.cfg-item');
       if (formDiv) campaign.monsters[detailState.index] = readMonsterFromForm(/** @type {HTMLElement} */ (formDiv));
+    } else if (detailState.type === 'wave') {
+      saveWaveFormToEntry(detailState.index);
     }
   }
 
@@ -377,6 +339,8 @@ export function openCampaignEditor(opts) {
           campaign.waves = imported.waves;
           campaign.game = imported.game;
           if (imported.name) campaign.name = imported.name;
+          if (imported.nextId) campaign.nextId = imported.nextId;
+          ensureCampaignIds(campaign);
           populateList();
         } catch (e) {
           alert('Invalid campaign file');
@@ -400,17 +364,25 @@ export function openCampaignEditor(opts) {
 
   const onAddTower = () => {
     readCampaignFromForm();
-    campaign.towers.push({ name: 'New', letter: 'X', color: '#ffffff', bg: '#444444', range: 2, damage: 1, fireRate: 30, cost: 10, hp: 5, damageType: 'physical', sizeW: 2, sizeH: 2 });
-    if (!campaign.waves.unlockTower) campaign.waves.unlockTower = [];
-    campaign.waves.unlockTower.push(1);
+    if (!campaign.nextId) campaign.nextId = 0;
+    campaign.towers.push({ id: 't' + campaign.nextId++, name: 'New', letter: 'X', color: '#ffffff', bg: '#444444', range: 2, damage: 1, fireRate: 30, cost: 10, hp: 5, damageType: 'physical', sizeW: 2, sizeH: 2 });
     openDetail('tower', campaign.towers.length - 1);
   };
   const onAddMonster = () => {
     readCampaignFromForm();
-    campaign.monsters.push({ name: 'New', letter: '?', color: '#ffffff', hp: 10, speed: 0.08, reward: 5 });
-    campaign.waves.baseCounts.push(1);
-    campaign.waves.unlockWave.push(campaign.monsters.length);
+    if (!campaign.nextId) campaign.nextId = 0;
+    campaign.monsters.push({ id: 'm' + campaign.nextId++, name: 'New', letter: '?', color: '#ffffff', hp: 10, speed: 0.08, reward: 5 });
     openDetail('monster', campaign.monsters.length - 1);
+  };
+  const onAddWave = () => {
+    readCampaignFromForm();
+    const towers = {};
+    campaign.towers.forEach(t => { towers[t.id] = true; });
+    const monsters = {};
+    campaign.monsters.forEach(m => { monsters[m.id] = 0; });
+    if (!campaign.waves.list) campaign.waves.list = [];
+    campaign.waves.list.push({ monsters, towers });
+    openDetail('wave', campaign.waves.list.length - 1);
   };
   const onBackBtn = () => { destroy(); onExit(); };
   const onSaveBtn = saveAndExit;
@@ -427,17 +399,11 @@ export function openCampaignEditor(opts) {
     }
   };
 
-  const addScriptBtn  = /** @type {HTMLButtonElement} */ (document.getElementById('btn-add-wave-script'));
-  const onAddScript = () => {
-    readWaveScript();
-    if (!campaign.waves.script) campaign.waves.script = [];
-    campaign.waves.script.push({ wave: campaign.waves.script.length + 1, lore: '' });
-    populateWaveScript();
-  };
+  const addWaveBtn    = /** @type {HTMLButtonElement} */ (document.getElementById('btn-add-wave'));
 
   addTowerBtn.addEventListener('click', onAddTower);
   addMonsterBtn.addEventListener('click', onAddMonster);
-  addScriptBtn.addEventListener('click', onAddScript);
+  addWaveBtn.addEventListener('click', onAddWave);
   backBtn.addEventListener('click', onBackBtn);
   saveBtn.addEventListener('click', onSaveBtn);
   resetBtn.addEventListener('click', onResetBtn);
@@ -450,7 +416,7 @@ export function openCampaignEditor(opts) {
   function destroy() {
     addTowerBtn.removeEventListener('click', onAddTower);
     addMonsterBtn.removeEventListener('click', onAddMonster);
-    addScriptBtn.removeEventListener('click', onAddScript);
+    addWaveBtn.removeEventListener('click', onAddWave);
     backBtn.removeEventListener('click', onBackBtn);
     saveBtn.removeEventListener('click', onSaveBtn);
     resetBtn.removeEventListener('click', onResetBtn);
@@ -660,6 +626,72 @@ function createMonsterFields(m) {
       div({ className: 'cfg-row' }, modInputs),
     ]),
   ]);
+}
+
+function createWaveFields(entry, waveIdx, campaign) {
+  const monsterInputs = campaign.monsters.map(m => {
+    const count = (entry.monsters && entry.monsters[m.id]) || 0;
+    return div({ className: 'cfg-row' }, [
+      span({ style: { color: m.color, minWidth: '70px' } }, [m.name]),
+      input({ type: 'number', className: 'wv-count', 'data-id': m.id, min: 0, value: count }),
+    ]);
+  });
+
+  const towerChecks = campaign.towers.map(t => {
+    const available = entry.towers && entry.towers[t.id];
+    return label({}, [
+      input({ type: 'checkbox', className: 'wv-tower', 'data-id': t.id, checked: !!available }),
+      span({ style: { color: t.color } }, [' ' + t.name]),
+    ]);
+  });
+
+  return div({ className: 'cfg-item' }, [
+    fieldset({}, [
+      legend({}, ['Monsters']),
+      ...monsterInputs,
+    ]),
+    fieldset({}, [
+      legend({}, ['Available Towers']),
+      div({ className: 'cfg-row', style: { flexWrap: 'wrap' } }, towerChecks),
+    ]),
+    fieldset({}, [
+      legend({}, ['Lore']),
+      textarea({
+        className: 'wv-lore',
+        rows: 3,
+        style: { width: '100%', padding: '6px', background: '#1a1a2a', color: '#ccc', border: '1px solid #444', borderRadius: '3px', fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' },
+      }, [entry.lore || '']),
+    ]),
+    fieldset({}, [
+      legend({}, ['Bonus Gold']),
+      div({ className: 'cfg-row' }, [
+        label({}, [
+          'Bonus ', helpBtn('Extra gold awarded when this wave is completed'), ' ',
+          input({ type: 'number', className: 'wv-bonus', min: 0, value: entry.bonus || 0 }),
+        ]),
+      ]),
+    ]),
+  ]);
+}
+
+function readWaveFromForm(formDiv) {
+  const monsters = {};
+  formDiv.querySelectorAll('.wv-count').forEach(el => {
+    const inp = /** @type {HTMLInputElement} */ (el);
+    const count = +inp.value || 0;
+    if (count > 0) monsters[inp.getAttribute('data-id')] = count;
+  });
+  const towers = {};
+  formDiv.querySelectorAll('.wv-tower').forEach(el => {
+    const inp = /** @type {HTMLInputElement} */ (el);
+    if (inp.checked) towers[inp.getAttribute('data-id')] = true;
+  });
+  const lore = /** @type {HTMLTextAreaElement} */ (formDiv.querySelector('.wv-lore')).value.trim();
+  const bonus = +(/** @type {HTMLInputElement} */ (formDiv.querySelector('.wv-bonus'))).value || 0;
+  const entry = { monsters, towers };
+  if (lore) entry.lore = lore;
+  if (bonus) entry.bonus = bonus;
+  return entry;
 }
 
 function readTowerFromForm(formDiv, parent) {

@@ -17,7 +17,7 @@ import {
   GROUND_GRASS, GROUND_ROAD, GROUND_TYPES,
 } from './constants.js';
 import {
-  getMergedNode, getTowerSize, getTowerNode, getWaveConfig, getWaveScript, isTowerUnlocked,
+  getMergedNode, getTowerSize, getTowerNode, getWaveConfig, isTowerUnlocked,
 } from './campaigns.js';
 import {
   recomputePath, isTopRowReachable,
@@ -290,7 +290,7 @@ export function createGame(opts) {
   }
 
   function selectTowerType(idx) {
-    if (idx < 0 || idx >= campaign.towers.length || !isTowerUnlocked(campaign.waves, idx, state.wave)) return;
+    if (idx < 0 || idx >= campaign.towers.length || !isTowerUnlocked(campaign.waves, campaign.towers[idx], state.wave)) return;
     const t = campaign.towers[idx];
     const sw = t.sizeW || 2, sh = t.sizeH || 2;
     if (state.selectedTower === idx && (sw !== sh || t.attackDir === 'fixed')) {
@@ -627,8 +627,8 @@ export function createGame(opts) {
       state.phase = 'PLACE';
       releaseWakeLock();
       var bonus = campaign.game.waveBonusGold;
-      const script = getWaveScript(campaign.waves, state.wave);
-      if (script && script.bonus) bonus += script.bonus;
+      const wc = getWaveConfig(campaign.waves, campaign.monsters, state.wave);
+      if (wc.bonus) bonus += wc.bonus;
       state.gold += bonus;
       showMessage('Wave ' + state.wave + ' complete! +' + bonus + 'g');
       hud.rebuildTowerButtons(state, campaign);

@@ -9,6 +9,7 @@
 
 /**
  * @typedef {Object} TowerDef
+ * @property {string}      [id]
  * @property {string}      [name]
  * @property {string}      [letter]
  * @property {string}      [color]
@@ -39,6 +40,7 @@
 
 /**
  * @typedef {Object} MonsterDef
+ * @property {string} [id]
  * @property {string} name
  * @property {string} letter
  * @property {string} color
@@ -50,16 +52,17 @@
  */
 
 /**
+ * @typedef {{monsters: Object<string,number>, towers: Object<string,boolean>, lore?: string, bonus?: number}} WaveEntry
+ */
+
+/**
  * @typedef {Object} WaveConfig
- * @property {number[]} baseCounts
- * @property {number[]} unlockWave
- * @property {number[]} [unlockTower]
+ * @property {WaveEntry[]} list
  * @property {number}   scaleEvery
  * @property {number}   hpScale          Percent per wave
  * @property {number}   intervalStart    Frames
  * @property {number}   intervalDecay    Frames
  * @property {number}   intervalMin      Frames
- * @property {Array<{wave:number, lore?:string, bonus?:number, monsters?:Object}>} [script]
  */
 
 /**
@@ -75,6 +78,7 @@
  * @property {string}        id
  * @property {string}        name
  * @property {boolean}       builtin
+ * @property {number}        [nextId]
  * @property {TowerDef[]}    towers
  * @property {MonsterDef[]}  monsters
  * @property {WaveConfig}    waves

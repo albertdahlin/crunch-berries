@@ -53,3 +53,4 @@ export const option    = tag('option');
 export const fieldset  = tag('fieldset');
 export const legend    = tag('legend');
 export const a         = tag('a');
+export const textarea  = tag('textarea');

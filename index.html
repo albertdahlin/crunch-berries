@@ -610,11 +610,11 @@ canvas {
     <button id="btn-add-monster" class="cfg-add">+ Add Monster</button>
 
     <h2>Waves</h2>
-    <div id="settings-wave-towers"></div>
-    <div id="settings-wave-monsters"></div>
+    <div id="settings-waves"></div>
+    <button id="btn-add-wave" class="cfg-add">+ Add Wave</button>
     <div class="cfg-item">
       <div class="cfg-row">
-        <label>Double every <span class="cfg-help" data-help="Monster counts double every this many waves">?</span> <input type="number" id="cfg-scaleEvery" min="1" value="2"> waves</label>
+        <label>Double every <span class="cfg-help" data-help="Monster counts double every this many waves past the list">?</span> <input type="number" id="cfg-scaleEvery" min="1" value="2"> waves</label>
         <label>HP + <span class="cfg-help" data-help="Monster HP increases by this percentage each wave">?</span> <input type="number" id="cfg-hpScale" min="0" value="20">% / wave</label>
       </div>
       <div class="cfg-row">
@@ -623,10 +623,6 @@ canvas {
         <label>Min delay <span class="cfg-help" data-help="Minimum spawn delay regardless of wave number">?</span> <input type="number" id="cfg-intervalMin" min="0.1" step="0.1">s</label>
       </div>
     </div>
-
-    <h3 style="color:#aaa;margin:8px 0 4px;font-family:monospace;font-size:13px">Wave Script</h3>
-    <div id="settings-wave-script"></div>
-    <button id="btn-add-wave-script" class="cfg-add">+ Add Wave Event</button>
 
     <h2>Game</h2>
     <div class="cfg-item">
