@@ -37,24 +37,66 @@ export const GROUND_MOUNTAIN = 5;
 
 /** @type {GroundType[]} Indexed by GROUND_* id. */
 export const GROUND_TYPES = [
-  { name: 'Grass',    help: 'Walkable, buildable',
-    walkable: true,  buildable: true,  speedMult: 1.0, blocksSight: false,
-    bg: '#1a2a1a', char: '',        charColor: ''        },
-  { name: 'Road',     help: 'Walkable, not buildable',
-    walkable: true,  buildable: false, speedMult: 1.0, blocksSight: false,
-    bg: '#2a2218', char: '.',       charColor: '#3a3028' },
-  { name: 'Water',    help: 'Impassable, not buildable',
-    walkable: false, buildable: false, speedMult: 1.0, blocksSight: false,
-    bg: '#0a1a3a', char: '~',       charColor: '#1a3a6a' },
-  { name: 'Swamp',    help: 'Walkable, not buildable, 0.5x speed',
-    walkable: true,  buildable: false, speedMult: 0.5, blocksSight: false,
-    bg: '#2a2a0a', char: ',',       charColor: '#4a4a1a' },
-  { name: 'Forest',   help: 'Not walkable, buildable',
-    walkable: false, buildable: true,  speedMult: 1.0, blocksSight: false,
-    bg: '#0a2a0a', char: '\u2663',  charColor: '#1a5a1a' },
-  { name: 'Mountain', help: 'Impassable, not buildable, blocks line of sight',
-    walkable: false, buildable: false, speedMult: 1.0, blocksSight: true,
-    bg: '#2a2a2a', char: '\u25B2',  charColor: '#888'    },
+  { name: 'Grass'
+  , help: 'Walkable, buildable'
+  , walkable: true
+  , buildable: true
+  , speedMult: 1.0
+  , blocksSight: false
+  , bg: '#1a2a1a'
+  , char: ''
+  , charColor: ''
+  },
+  { name: 'Road'
+  , help: 'Walkable, not buildable'
+  , walkable: true
+  , buildable: false
+  , speedMult: 1.0
+  , blocksSight: false
+  , bg: '#2a2218'
+  , char: '·'
+  , charColor: '#3a3028'
+  },
+  { name: 'Water'
+  , help: 'Impassable, not buildable'
+  , walkable: false
+  , buildable: false
+  , speedMult: 1.0
+  , blocksSight: false
+  , bg: '#0a1a3a'
+  , char: '♒︎'
+  , charColor: '#1a3a6a'
+  },
+  { name: 'Swamp'
+  , help: 'Walkable, not buildable, 0.5x speed'
+  , walkable: true
+  , buildable: false
+  , speedMult: 0.5
+  , blocksSight: false
+  , bg: '#2a2a0a'
+  , char: '𖣂'
+  , charColor: '#4a4a1a'
+  },
+  { name: 'Forest'
+  , help: 'Not walkable, buildable'
+  , walkable: false
+  , buildable: true
+  , speedMult: 1.0
+  , blocksSight: false
+  , bg: '#0a2a0a'
+  , char: '\u2663'
+  , charColor: '#1a5a1a'
+  },
+  { name: 'Mountain'
+  , help: 'Impassable, not buildable, blocks line of sight'
+  , walkable: false
+  , buildable: false
+  , speedMult: 1.0
+  , blocksSight: true
+  , bg: '#2a2a2a'
+  , char: '\u25B2'
+  , charColor: '#888'
+  },
 ];
 
 // 8 directions: 0=up, 1=up-right, 2=right, 3=down-right, 4=down, 5=down-left, 6=left, 7=up-left
