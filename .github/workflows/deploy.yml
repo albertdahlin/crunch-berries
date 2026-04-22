@@ -1,0 +1,37 @@
+name: Deploy to 8h.nu
+
+on:
+  push:
+    branches: [claude/tower-defence-prototype-aLPFK]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Inject version number
+        run: |
+          VERSION=$(git rev-list --count HEAD)
+          sed -i "s/__VERSION__/$VERSION/" src/constants.js
+
+      - name: Stage files for deploy
+        run: |
+          mkdir -p _deploy
+          cp index.html _deploy/
+          cp -r src maps _deploy/
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H 8h.nu >> ~/.ssh/known_hosts
+
+      - name: Deploy via rsync
+        run: |
+          rsync -avz --delete \
+            _deploy/ githubb@8h.nu:/srv/8h.nu/pub/td/
