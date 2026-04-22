@@ -592,8 +592,7 @@ export function createWebGLRenderer(canvas) {
 
     three.render(scene, camera);
 
-    // Tick the canvas-style message timer (no DOM display for WebGL yet).
-    if (state.messageTimer > 0) state.messageTimer--;
+    updateMessageOverlay(state);
     updateGameOverOverlay(state);
   }
 
@@ -610,6 +609,7 @@ export function createWebGLRenderer(canvas) {
 
     three.render(scene, camera);
     hideGameOverOverlay();
+    hideMessageOverlay();
   }
 
   function clientToTile(clientX, clientY) {
@@ -774,5 +774,23 @@ function updateGameOverOverlay(state) {
 
 function hideGameOverOverlay() {
   const el = document.getElementById('game-over');
+  if (el) el.style.display = 'none';
+}
+
+function updateMessageOverlay(state) {
+  const el = document.getElementById('game-message');
+  if (!el) return;
+  if (state.messageTimer > 0) {
+    el.style.display = 'flex';
+    const txt = document.getElementById('game-message-text');
+    if (txt) txt.textContent = state.message;
+    state.messageTimer--;
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function hideMessageOverlay() {
+  const el = document.getElementById('game-message');
   if (el) el.style.display = 'none';
 }

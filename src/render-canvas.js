@@ -342,31 +342,18 @@ export function createCanvasRenderer(canvas) {
 
   /** @param {GameState} state */
   function drawMessage(state) {
-    if (state.messageTimer <= 0) return;
-    const fontSize = Math.max(10, Math.floor(TILE_SIZE * 0.7));
-    ctx.font = fontSize + 'px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const maxW = CANVAS_W - TILE_SIZE * 2;
-    const words = state.message.split(' ');
-    const lines = [];
-    let line = '';
-    for (const w of words) {
-      const test = line ? line + ' ' + w : w;
-      if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = w; }
-      else line = test;
+    // Rendered via a shared HTML overlay (#game-message) so both renderers
+    // behave identically and text scales with the viewport.
+    const el = document.getElementById('game-message');
+    if (!el) return;
+    if (state.messageTimer > 0) {
+      el.style.display = 'flex';
+      const txt = document.getElementById('game-message-text');
+      if (txt) txt.textContent = state.message;
+      state.messageTimer--;
+    } else {
+      el.style.display = 'none';
     }
-    if (line) lines.push(line);
-    const lineH = fontSize * 1.4;
-    const msgH = Math.max(TILE_SIZE * 1.5, lines.length * lineH + fontSize);
-    const top = CANVAS_H / 2 - msgH / 2;
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.fillRect(0, top, CANVAS_W, msgH);
-    ctx.fillStyle = '#fff';
-    for (let i = 0; i < lines.length; i++) {
-      ctx.fillText(lines[i], CANVAS_W / 2, top + msgH / 2 + (i - (lines.length - 1) / 2) * lineH);
-    }
-    state.messageTimer--;
   }
 
   /** @param {GameState} state */

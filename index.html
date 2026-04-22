@@ -495,6 +495,28 @@ canvas {
   font-size: 13px;
 }
 
+/* In-game message overlay (lore / notifications, shared by all renderers) */
+#game-message {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  font-family: monospace;
+}
+#game-message .gm-box {
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1.4;
+  padding: 14px 20px;
+  max-width: 80vw;
+  text-align: center;
+  white-space: pre-wrap;
+}
+
 /* Settings screen form blocks */
 .settings-group {
   width: 100%;
@@ -547,6 +569,10 @@ canvas {
   <div class="go-title">GAME OVER</div>
   <div class="go-score" id="game-over-score">Score: 0</div>
   <div class="go-hint">Tap Home to quit</div>
+</div>
+
+<div id="game-message">
+  <div class="gm-box" id="game-message-text"></div>
 </div>
 
 <script type="importmap">
