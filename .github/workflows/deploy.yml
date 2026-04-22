@@ -34,4 +34,4 @@ jobs:
       - name: Deploy via rsync
         run: |
           rsync -avz --delete \
-            _deploy/ githubb@8h.nu:/srv/8h.nu/pub/td/
+            _deploy/ github@8h.nu:/srv/8h.nu/pub/td/
