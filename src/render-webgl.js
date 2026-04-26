@@ -75,7 +75,7 @@ export function createWebGLRenderer(canvas) {
 
   /** @type {THREE.InstancedMesh[]} one per distinct ground type present in the map */
   const tileMeshes = [];
-  const mapCache = { cols: 0, rows: 0, /** @type {?Uint8Array} */ ground: null };
+  const mapCache = { cols: 0, rows: 0, /** @type {?Uint8Array} */ ground: null, towerCount: -1 };
 
   // --- Caches ---
   /** @type {Map<string, THREE.MeshLambertMaterial>} */
@@ -484,7 +484,9 @@ export function createWebGLRenderer(canvas) {
         mesh.setColorAt(mesh.count, _color);
         mesh.count++;
 
-        if (gt.name === 'Forest' && treeCanopy && treeTrunk) {
+        // Forest tiles that hold a tower lose their canopy decoration so the
+        // tower silhouette reads cleanly without a tree poking through it.
+        if (gt.name === 'Forest' && treeCanopy && treeTrunk && (!map.grid || map.grid[i] === 0)) {
           const hash = hashTile(col, row);
           const offX = (hash % 7 - 3) * 0.05;
           const offZ = ((hash >> 3) % 7 - 3) * 0.05;
@@ -1043,9 +1045,13 @@ export function createWebGLRenderer(canvas) {
     if (map.cols !== mapCache.cols || map.rows !== mapCache.rows || tileMeshes.length === 0) {
       setGridSize(map.cols, map.rows);
       mapCache.ground = map.ground;
+      mapCache.towerCount = state.towers.length;
       rebuildTileMesh(map);
-    } else if (mapCache.ground !== map.ground) {
+    } else if (mapCache.ground !== map.ground || mapCache.towerCount !== state.towers.length) {
+      // ground or tower placement changed — rebuild so trees on occupied
+      // forest tiles disappear (or reappear after a sell).
       mapCache.ground = map.ground;
+      mapCache.towerCount = state.towers.length;
       rebuildTileMesh(map);
     }
 
