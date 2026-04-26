@@ -3,560 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Tower Defence</title>
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  background: #0a0a1a;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-height: 100vh;
-  min-height: 100dvh;
-  touch-action: pan-y;
-  font-family: monospace;
-  color: #ccc;
-}
-canvas {
-  display: block;
-  width: 100vw;
-}
-#hud {
-  position: sticky;
-  top: 0;
-  display: none;
-  width: 100%;
-  background: rgba(10, 10, 26, 0.9);
-  z-index: 10;
-  font-family: monospace;
-  font-size: 14px;
-  padding: 6px 8px;
-  gap: 12px;
-  justify-content: space-between;
-}
-#hud span { white-space: nowrap; }
-.hud-gold { color: #ffd700; }
-.hud-lives { color: #ef5350; }
-.hud-wave { color: #81d4fa; }
-.hud-score { color: #aaa; }
-.hud-version { color: #555; }
-.hud-phase { font-weight: bold; }
-#ui {
-  position: sticky;
-  bottom: 0;
-  display: none;
-  gap: 6px;
-  padding: 10px 8px;
-  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-  flex-wrap: wrap;
-  justify-content: center;
-  background: #0a0a1a;
-  width: 100%;
-  z-index: 10;
-}
-#ui button, #edit-campaign button {
-  padding: 6px 12px;
-  font-size: 14px;
-  font-family: monospace;
-  background: #222;
-  color: #ccc;
-  border: 1px solid #444;
-  border-radius: 4px;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-#ui button:active { background: #444; }
-#ui button.selected { border-color: #fff; background: #333; }
-#btn-place { background: #1b5e20; border-color: #4caf50; color: #fff; }
-#btn-place:active { background: #2e7d32; }
-#btn-wave { background: #0d47a1; border-color: #42a5f5; color: #fff; }
-#btn-wave:active { background: #1565c0; }
-#btn-save { background: #333; border-color: #888; color: #ccc; }
-#btn-home { background: #333; border-color: #666; }
-#tower-buttons { display: contents; }
-#brush-buttons { display: contents; }
-
-/* Campaign editor (formerly settings) overlay */
-#edit-campaign {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  background: #0a0a1a;
-  flex-direction: column;
-  overflow-y: auto;
-  padding: 16px;
-  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-}
-#edit-campaign h2 { color: #81d4fa; margin: 16px 0 8px; font-size: 16px; }
-#edit-campaign h2:first-of-type { margin-top: 0; }
-#edit-campaign .cfg-item {
-  background: #111;
-  border: 1px solid #333;
-  border-radius: 6px;
-  padding: 10px;
-  margin-bottom: 8px;
-}
-#edit-campaign .cfg-item-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-  font-weight: bold;
-  color: #aaa;
-}
-#edit-campaign .cfg-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 4px;
-  align-items: center;
-}
-#edit-campaign fieldset {
-  border: 1px solid #2a2a3a;
-  border-radius: 4px;
-  padding: 6px 8px;
-  margin-bottom: 6px;
-}
-.tree-nav { margin-bottom: 8px; font-family: monospace; font-size: 13px; color: #888; }
-.tree-crumb { color: #4caf50; cursor: pointer; }
-.tree-crumb:hover { text-decoration: underline; }
-.tree-crumb.current { color: #fff; cursor: default; }
-.tree-crumb.current:hover { text-decoration: none; }
-.tree-children { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
-.tree-upgrade-list { display: flex; flex-direction: column; gap: 4px; }
-.tree-upgrade-list .cfg-list-item { cursor: pointer; padding: 6px 8px; }
-.tree-child-rm { background: none; border: 1px solid #f44336; color: #f44336; padding: 2px 6px; min-width: 0; margin-left: auto; flex-shrink: 0; }
-.tree-child-add { background: none; border: 1px solid #4caf50; color: #4caf50; align-self: flex-start; }
-.cfg-help {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 14px; height: 14px; border-radius: 50%;
-  background: #333; color: #666; font-size: 10px;
-  cursor: pointer; flex-shrink: 0; font-family: monospace;
-}
-.cfg-help:hover { color: #aaa; background: #444; }
-.help-overlay {
-  position: fixed; inset: 0; z-index: 200;
-  background: rgba(0,0,0,0.7);
-  display: flex; align-items: center; justify-content: center; padding: 24px;
-}
-.help-overlay-text {
-  background: #1a1a2a; border: 1px solid #444; border-radius: 8px;
-  padding: 16px 20px; color: #ccc; font-family: monospace;
-  font-size: 14px; max-width: 300px; text-align: center; line-height: 1.5;
-}
-.bestiary-overlay {
-  position: fixed; inset: 0; z-index: 150;
-  background: rgba(0,0,0,0.75);
-  display: flex; align-items: center; justify-content: center; padding: 16px;
-}
-.bestiary-box {
-  background: #111; border: 1px solid #444; border-radius: 8px;
-  padding: 12px; max-width: 380px; width: 100%; max-height: 80vh;
-  overflow-y: auto; font-family: monospace;
-}
-.bestiary-title {
-  color: #ef5350; font-size: 16px; font-weight: bold;
-  text-align: center; margin-bottom: 10px;
-}
-.bestiary-row {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-  padding: 8px; border: 1px solid #2a2a3a; border-radius: 4px;
-  margin-bottom: 4px; cursor: pointer;
-}
-.bestiary-row:hover { background: #1a1a2a; }
-.bestiary-icon {
-  width: 22px; height: 22px; border-radius: 3px;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: bold; font-size: 13px; flex-shrink: 0;
-}
-.bestiary-info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.bestiary-name { color: #ccc; font-size: 13px; font-weight: bold; }
-.bestiary-desc { color: #777; font-size: 11px; margin-top: 2px; }
-.bestiary-stats {
-  display: none; width: 100%; color: #aaa; font-size: 11px;
-  padding: 6px 0 0; white-space: pre-line; line-height: 1.6;
-}
-.bestiary-close {
-  text-align: center; color: #666; font-size: 12px;
-  margin-top: 8px; cursor: pointer; padding: 4px;
-}
-.bestiary-close:hover { color: #aaa; }
-#edit-campaign fieldset legend {
-  color: #666;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 0 4px;
-}
-#edit-campaign label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  color: #999;
-}
-#edit-campaign input[type="text"],
-#edit-campaign input[type="number"],
-#edit-campaign select {
-  width: 60px;
-  padding: 4px;
-  background: #1a1a2a;
-  color: #fff;
-  border: 1px solid #444;
-  border-radius: 3px;
-  font-family: monospace;
-  font-size: 13px;
-}
-#edit-campaign input[type="text"] { width: 80px; }
-#edit-campaign select { width: 90px; }
-#edit-campaign input[type="color"] {
-  width: 32px;
-  height: 24px;
-  padding: 0;
-  border: 1px solid #444;
-  border-radius: 3px;
-  background: none;
-  cursor: pointer;
-}
-#edit-campaign .cfg-remove {
-  background: #4a1a1a;
-  border-color: #f44336;
-  color: #f44336;
-  padding: 2px 8px;
-  font-size: 12px;
-}
-#edit-campaign .cfg-add {
-  background: #1a2a1a;
-  border-color: #4caf50;
-  color: #4caf50;
-  margin: 4px 0 12px;
-}
-#edit-campaign .cfg-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid #333;
-}
-#edit-campaign .cfg-actions button { flex: 1; padding: 10px; font-size: 15px; }
-.btn-save { background: #1b5e20 !important; border-color: #4caf50 !important; color: #fff !important; }
-.btn-reset { background: #4a1a1a !important; border-color: #f44336 !important; color: #f44336 !important; }
-
-#edit-campaign .cfg-list-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: #111;
-  border: 1px solid #333;
-  border-radius: 6px;
-  padding: 10px 12px;
-  margin-bottom: 6px;
-  cursor: pointer;
-  font-family: monospace;
-  font-size: 14px;
-  color: #ccc;
-}
-#edit-campaign .cfg-list-item:active { background: #222; }
-#edit-campaign .cfg-list-item .cfg-swatch {
-  width: 24px;
-  height: 24px;
-  border-radius: 3px;
-  border: 1px solid #555;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: 14px;
-}
-#edit-campaign .cfg-list-item .cfg-list-name { flex: 1; }
-#edit-campaign .cfg-list-item .cfg-list-arrow { color: #555; }
-
-#settings-detail {
-  display: none;
-  flex-direction: column;
-}
-#settings-detail .cfg-detail-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-#settings-detail .cfg-detail-header button {
-  padding: 6px 12px;
-  font-size: 14px;
-  font-family: monospace;
-  background: #222;
-  color: #ccc;
-  border: 1px solid #444;
-  border-radius: 4px;
-  cursor: pointer;
-}
-#settings-detail .cfg-detail-header span {
-  color: #81d4fa;
-  font-size: 16px;
-  font-weight: bold;
-}
-#settings-detail .cfg-detail-body .cfg-item {
-  border: none;
-  padding: 0;
-  background: none;
-}
-
-/* Editor UI */
-#editor-ui {
-  position: sticky;
-  bottom: 0;
-  display: none;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 8px;
-  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-  background: #0a0a1a;
-  width: 100%;
-  z-index: 10;
-}
-#editor-ui .editor-row {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-#editor-ui button {
-  padding: 6px 12px;
-  font-size: 14px;
-  font-family: monospace;
-  background: #222;
-  color: #ccc;
-  border: 1px solid #444;
-  border-radius: 4px;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-#editor-ui button:active { background: #444; }
-#editor-ui button.selected { border-color: #fff; background: #333; }
-#btn-editor-play { background: #1b5e20; border-color: #4caf50; color: #fff; }
-#btn-editor-save { background: #0d47a1; border-color: #42a5f5; color: #fff; }
-#btn-editor-back { background: #333; border-color: #666; }
-#btn-editor-clear { background: #4a1a1a; border-color: #f44336; color: #f44336; }
-
-/* Screens (home, pickers, empty settings) */
-#home, #screen-list, #screen-settings {
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  min-height: 100vh;
-  min-height: 100dvh;
-  padding: 24px 16px;
-  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
-  overflow-y: auto;
-  width: 100%;
-}
-#home h1 {
-  color: #81d4fa;
-  font-family: monospace;
-  font-size: 24px;
-  margin-bottom: 24px;
-}
-.screen-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  max-width: 400px;
-  margin-bottom: 16px;
-}
-.screen-header button {
-  padding: 6px 12px;
-  font-family: monospace;
-  font-size: 14px;
-  background: #222;
-  color: #ccc;
-  border: 1px solid #444;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.screen-title {
-  color: #81d4fa;
-  font-family: monospace;
-  font-size: 18px;
-  font-weight: bold;
-}
-.ms-list {
-  width: 100%;
-  max-width: 400px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.ms-item {
-  background: #111;
-  border: 1px solid #333;
-  border-radius: 6px;
-  padding: 12px 14px;
-  cursor: pointer;
-  font-family: monospace;
-  touch-action: manipulation;
-}
-.ms-item:active { background: #1a1a2a; }
-.ms-item-title {
-  font-size: 15px;
-  font-weight: bold;
-  color: #4caf50;
-}
-.ms-item-desc {
-  font-size: 12px;
-  color: #555;
-  margin-top: 4px;
-}
-.ms-saved { border-color: #4fc3f7; }
-.ms-saved .ms-item-title { color: #fff; }
-.ms-saved-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.ms-btn-edit, .ms-btn-del {
-  padding: 4px 8px;
-  font-size: 16px;
-  line-height: 1;
-  font-family: monospace;
-  border-radius: 4px;
-  cursor: pointer;
-  touch-action: manipulation;
-  background: none;
-}
-.ms-btn-edit { border: 1px solid #4caf50; color: #4caf50; }
-.ms-btn-del  { border: 1px solid #f44336; color: #f44336; }
-.ms-empty {
-  color: #555;
-  font-family: monospace;
-  font-size: 13px;
-  text-align: center;
-  padding: 24px 8px;
-}
-.ms-version {
-  color: #333;
-  font-family: monospace;
-  font-size: 12px;
-  margin-top: 12px;
-}
-
-#edit-campaign-header {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 12px;
-}
-#edit-campaign-header label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 1;
-}
-#edit-campaign-header input {
-  flex: 1;
-  padding: 6px 8px;
-  background: #1a1a2a;
-  color: #fff;
-  border: 1px solid #444;
-  border-radius: 3px;
-  font-family: monospace;
-  font-size: 14px;
-}
-
-/* Game-over overlay (shared by all renderers) */
-#game-over {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  background: rgba(0, 0, 0, 0.6);
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  pointer-events: none;
-  font-family: monospace;
-}
-#game-over .go-title {
-  color: #f44336;
-  font-size: 36px;
-  font-weight: bold;
-  margin-bottom: 16px;
-}
-#game-over .go-score {
-  color: #ccc;
-  font-size: 18px;
-  margin-bottom: 8px;
-}
-#game-over .go-hint {
-  color: #888;
-  font-size: 13px;
-}
-
-/* In-game message overlay (lore / notifications, shared by all renderers) */
-#game-message {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  font-family: monospace;
-}
-#game-message .gm-box {
-  background: rgba(0, 0, 0, 0.7);
-  color: #fff;
-  font-size: 16px;
-  line-height: 1.4;
-  padding: 14px 20px;
-  max-width: 80vw;
-  text-align: center;
-  white-space: pre-wrap;
-}
-
-/* Settings screen form blocks */
-.settings-group {
-  width: 100%;
-  max-width: 400px;
-  padding: 16px;
-  border-top: 1px solid #333;
-  margin-top: 16px;
-}
-.settings-group h3 {
-  color: #81d4fa;
-  font-size: 14px;
-  margin-bottom: 8px;
-  text-align: left;
-}
-.settings-group label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #ccc;
-  font-size: 13px;
-  margin-bottom: 6px;
-  cursor: pointer;
-}
-.settings-group label input[type="radio"] { cursor: pointer; }
-.settings-group .settings-hint {
-  color: #666;
-  font-size: 11px;
-  margin-left: 26px;
-  margin-bottom: 4px;
-}
-</style>
+<title>Tower Defence — Ashenhold</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="src/styles.css">
 </head>
 <body>
+<div class="bg-stars" aria-hidden="true"></div>
+<div class="bg-mist" aria-hidden="true"></div>
+
 <div id="hud">
-  <span class="hud-gold" id="hud-gold">G:0</span>
-  <span class="hud-lives" id="hud-lives">L:0</span>
-  <span class="hud-wave" id="hud-wave">W:0</span>
-  <span class="hud-score" id="hud-score">S:0</span>
+  <div class="hud-stats">
+    <span class="pip pip-gold"  id="hud-gold">G:0</span>
+    <span class="pip pip-ember" id="hud-lives">L:0</span>
+    <span class="pip pip-moon"  id="hud-wave">W:0</span>
+    <span class="pip"           id="hud-score">S:0</span>
+  </div>
   <span class="hud-version" id="hud-version"></span>
-  <span class="hud-phase" id="hud-phase"></span>
+  <span id="hud-phase"></span>
 </div>
 
 <div id="home"></div>
@@ -566,9 +31,13 @@ canvas {
 <canvas id="game"></canvas>
 
 <div id="game-over">
-  <div class="go-title">GAME OVER</div>
-  <div class="go-score" id="game-over-score">Score: 0</div>
-  <div class="go-hint">Tap Home to quit</div>
+  <div class="panel panel-ornate go-card">
+    <div class="go-eyebrow">THE PASS IS BROKEN</div>
+    <div class="go-title">Defeat</div>
+    <div class="divider-ornate go-divider"><span>✦</span></div>
+    <div class="go-score" id="game-over-score">Score: 0</div>
+    <div class="go-hint">Tap Home to retreat to the sanctum.</div>
+  </div>
 </div>
 
 <div id="game-message">
@@ -580,42 +49,45 @@ canvas {
 </script>
 
 <div id="ui">
-  <div id="tower-info" style="display:none;width:100%;text-align:center;font-family:monospace">
-    <div id="tower-desc" style="color:#888;font-size:12px"></div>
-    <div id="tower-stats" style="color:#666;font-size:11px"></div>
+  <div id="tower-info" style="display:none">
+    <div id="tower-desc"></div>
+    <div id="tower-stats"></div>
   </div>
-  <span id="tower-buttons"></span>
-  <button id="btn-place">Place</button>
-  <span id="upgrade-buttons"></span>
-  <button id="btn-rotate" style="display:none;background:#333;border-color:#888;color:#ccc">Rotate (R)</button>
-  <button id="btn-sell" style="display:none;background:#b71c1c;border-color:#f44336;color:#fff">Sell</button>
-  <button id="btn-wave">Wave (W)</button>
-  <button id="btn-bestiary" style="background:#1a1a2a;border-color:#ef5350;color:#ef5350">Bestiary (B)</button>
-  <button id="btn-speed" style="background:#1a1a2a;border-color:#ffd700;color:#ffd700">1x</button>
-  <button id="btn-save">Save</button>
-  <button id="btn-home">Home</button>
+  <div class="ui-row">
+    <span id="tower-buttons"></span>
+    <button id="btn-place">Place</button>
+    <span id="upgrade-buttons"></span>
+    <button id="btn-rotate" style="display:none">Rotate (R)</button>
+    <button id="btn-sell" style="display:none">Sell</button>
+    <button id="btn-wave">Wave (W)</button>
+    <button id="btn-bestiary">Bestiary (B)</button>
+    <button id="btn-speed">1x</button>
+    <button id="btn-save">Save</button>
+    <button id="btn-home">Home</button>
+  </div>
 </div>
 
 <div id="editor-ui">
-  <div class="editor-row">
-    <label style="color:#999;font-size:13px;font-family:monospace;display:flex;align-items:center;gap:4px">Name <input type="text" id="editor-map-name" maxlength="24" style="width:100px;padding:4px 6px;background:#1a1a2a;color:#fff;border:1px solid #444;border-radius:3px;font-family:monospace;font-size:13px"></label>
-    <label style="color:#999;font-size:13px;font-family:monospace;display:flex;align-items:center;gap:4px">W<input type="number" id="editor-map-cols" min="5" max="60" style="width:44px;padding:4px;background:#1a1a2a;color:#fff;border:1px solid #444;border-radius:3px;font-family:monospace;font-size:13px"></label>
-    <label style="color:#999;font-size:13px;font-family:monospace;display:flex;align-items:center;gap:4px">H<input type="number" id="editor-map-rows" min="5" max="60" style="width:44px;padding:4px;background:#1a1a2a;color:#fff;border:1px solid #444;border-radius:3px;font-family:monospace;font-size:13px"></label>
+  <div class="editor-row editor-row-inline">
+    <label><span class="editor-section-label">Name</span> <input type="text" id="editor-map-name" maxlength="24" style="width:120px"></label>
+    <label><span class="editor-section-label">W</span><input type="number" id="editor-map-cols" min="5" max="60" style="width:48px"></label>
+    <label><span class="editor-section-label">H</span><input type="number" id="editor-map-rows" min="5" max="60" style="width:48px"></label>
   </div>
   <div class="editor-row">
+    <span class="editor-section-label">Brush</span>
     <span id="brush-buttons"></span>
     <button id="btn-editor-size">1x1</button>
   </div>
   <div class="editor-row">
-    <span id="brush-help" style="color:#888;font-size:11px;font-family:monospace"></span>
+    <span id="brush-help"></span>
   </div>
   <div class="editor-row">
     <button id="btn-editor-play">Play</button>
     <button id="btn-editor-save">Save</button>
     <button id="btn-editor-clear">Clear</button>
-    <button id="btn-editor-delete" style="display:none;background:#4a1a1a;border-color:#f44336;color:#f44336">Delete</button>
-    <button id="btn-editor-export" style="background:#0d47a1;border-color:#42a5f5;color:#fff">Export</button>
-    <button id="btn-editor-import" style="background:#0d47a1;border-color:#42a5f5;color:#fff">Import</button>
+    <button id="btn-editor-delete" style="display:none">Delete</button>
+    <button id="btn-editor-export">Export</button>
+    <button id="btn-editor-import">Import</button>
     <button id="btn-editor-back">Back</button>
   </div>
 </div>
@@ -665,14 +137,14 @@ canvas {
       <button id="btn-campaign-reset" class="btn-reset">Reset to Classic</button>
     </div>
     <div class="cfg-actions">
-      <button id="btn-campaign-export" style="background:#0d47a1;border-color:#42a5f5;color:#fff">Export</button>
-      <button id="btn-campaign-import" style="background:#0d47a1;border-color:#42a5f5;color:#fff">Import</button>
+      <button id="btn-campaign-export">Export</button>
+      <button id="btn-campaign-import">Import</button>
     </div>
   </div>
 
   <div id="settings-detail">
     <div class="cfg-detail-header">
-      <button id="btn-detail-back">Back</button>
+      <button id="btn-detail-back">&larr; Back</button>
       <span id="settings-detail-title"></span>
       <button id="btn-detail-delete" class="cfg-remove" style="margin-left:auto">Delete</button>
     </div>

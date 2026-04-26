@@ -8,6 +8,7 @@
 
 import { VERSION } from './constants.js';
 import { div, span, button, h1, h2, label, input } from './html.js';
+import { icon } from './icons.js';
 import { createGame } from './game.js';
 import {
   BUILTIN_CAMPAIGNS,
@@ -77,22 +78,40 @@ export function createScreenManager({ canvas, renderer, hud }) {
     stopGame();
     hideAll();
     homeEl.innerHTML = '';
-    homeEl.appendChild(h1({}, ['TOWER DEFENCE']));
 
     const items = [
-      { title: 'New Game',        desc: 'Pick a campaign and a map',       to: '/new-game'  },
-      { title: 'Load Game',       desc: 'Resume a saved game',             to: '/load-game' },
-      { title: 'Map Editor',      desc: 'Create and edit maps',            to: '/maps'      },
-      { title: 'Campaign Editor', desc: 'Design towers, monsters, waves',  to: '/campaigns' },
-      { title: 'Settings',        desc: 'Audio, video, controls',          to: '/settings'  },
+      { title: 'New Vigil',       desc: 'Pick a campaign and a map',       to: '/new-game',   ic: 'sword'  },
+      { title: 'Resume',          desc: 'Continue a saved game',           to: '/load-game',  ic: 'play'   },
+      { title: 'Cartography',     desc: 'Create and edit maps',            to: '/maps',       ic: 'brush'  },
+      { title: 'Forge',           desc: 'Design towers, monsters, waves',  to: '/campaigns',  ic: 'tower'  },
+      { title: 'Sanctum',         desc: 'Audio, video, renderer',          to: '/settings',   ic: 'gear'   },
     ];
-    homeEl.appendChild(div({ className: 'ms-list' }, items.map(it =>
-      div({ className: 'ms-item', onClick: () => router.navigate(it.to) }, [
-        div({ className: 'ms-item-title' }, [it.title]),
-        div({ className: 'ms-item-desc'  }, [it.desc]),
+
+    const hero = div({ className: 'home-hero' }, [
+      div({ className: 'eyebrow home-eyebrow' }, ['Chapter I  ·  The Long Dusk']),
+      h1({ className: 'home-title' }, ['Tower', document.createElement('br'), 'Defence']),
+      div({ className: 'divider-ornate home-divider' }, [span({}, ['✦'])]),
+      div({ className: 'home-blurb' }, [
+        'The wards are thin. The Black Tide rises from the salt-roads below. Hold the pass, kindle the beacons, and do not let the dark pass the wall.',
       ]),
-    )));
-    homeEl.appendChild(div({ className: 'ms-version' }, ['v' + VERSION]));
+    ]);
+
+    const menu = div({ className: 'ms-list' }, items.map(it =>
+      div({
+        className: 'ms-item panel panel-ornate',
+        onClick: () => router.navigate(it.to),
+      }, [
+        div({ className: 'ms-item-icon' }, [icon(it.ic, { size: 18 })]),
+        div({ className: 'ms-item-body' }, [
+          div({ className: 'ms-item-title' }, [it.title]),
+          div({ className: 'ms-item-desc'  }, [it.desc]),
+        ]),
+        span({ className: 'ms-item-arrow' }, ['›']),
+      ]),
+    ));
+
+    homeEl.appendChild(div({ className: 'home-grid' }, [hero, menu]));
+    homeEl.appendChild(div({ className: 'ms-version' }, ['ASHENHOLD  ·  v' + VERSION]));
     homeEl.style.display = 'flex';
   }
 
@@ -101,14 +120,11 @@ export function createScreenManager({ canvas, renderer, hud }) {
     stopGame();
     hideAll();
     listEl.style.display = 'flex';
-    renderList('New Game — Pick Campaign', '/', (body) => {
+    renderList('Choose Campaign', '/', (body) => {
       listAllCampaigns().forEach(c => {
-        const row = makeRow(c.name + (c.builtin ? ' [built-in]' : ''),
-          c.towers.length + ' towers · ' + c.monsters.length + ' monsters',
-          () => router.navigate('/new-game/' + c.id));
-        body.appendChild(row);
+        body.appendChild(makeCampaignRow(c, () => router.navigate('/new-game/' + c.id)));
       });
-    });
+    }, 'New Vigil  ·  Step One');
   }
 
   // --- New Game: map picker ---
@@ -118,15 +134,11 @@ export function createScreenManager({ canvas, renderer, hud }) {
     stopGame();
     hideAll();
     listEl.style.display = 'flex';
-    renderList('New Game — Pick Map', '/new-game', (body) => {
+    renderList('Choose Map', '/new-game', (body) => {
       listAllMaps().forEach(m => {
-        const dims = m.cols + 'x' + m.rows;
-        const tag = m.id.indexOf('builtin:') === 0 ? ' — built-in' : '';
-        const row = makeRow(m.name, dims + tag,
-          () => router.navigate('/play/' + campaign.id + '/' + m.id));
-        body.appendChild(row);
+        body.appendChild(makeMapRow(m, () => router.navigate('/play/' + campaign.id + '/' + m.id)));
       });
-    });
+    }, 'New Vigil  ·  Step Two');
   }
 
   // --- Load Game ---
@@ -134,37 +146,39 @@ export function createScreenManager({ canvas, renderer, hud }) {
     stopGame();
     hideAll();
     listEl.style.display = 'flex';
-    renderList('Load Game', '/', (body) => {
+    renderList('Resume Vigil', '/', (body) => {
       const saves = loadSavedGames();
       if (saves.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'ms-empty';
-        empty.textContent = 'No saved games yet. Save from the in-game menu.';
-        body.appendChild(empty);
+        body.appendChild(div({ className: 'ms-empty' }, [
+          'No vigils kept. The Ledger holds no entries until you save from the in-game menu.',
+        ]));
         return;
       }
       saves.forEach(s => {
         const dateStr = new Date(s.savedAt).toLocaleString();
         body.appendChild(div({
-          className: 'ms-item ms-saved',
+          className: 'ms-item ms-saved panel panel-ornate',
           onClick: () => router.navigate('/resume/' + s.id),
         }, [
-          div({ className: 'ms-saved-top' }, [
-            span({ className: 'ms-item-title' }, [s.name]),
-            button({
-              className: 'ms-btn-del',
-              title: 'Delete',
-              onClick: (/** @type {MouseEvent} */ e) => {
-                e.stopPropagation();
-                saveSavedGames(loadSavedGames().filter(x => x.id !== s.id));
-                renderLoadGame();
-              },
-            }, ['\u00d7']),
+          div({ className: 'ms-item-icon' }, [icon('scroll', { size: 18 })]),
+          div({ className: 'ms-item-body' }, [
+            div({ className: 'ms-saved-top' }, [
+              span({ className: 'ms-item-title' }, [s.name]),
+              button({
+                className: 'ms-btn-del',
+                title: 'Delete',
+                onClick: (/** @type {MouseEvent} */ e) => {
+                  e.stopPropagation();
+                  saveSavedGames(loadSavedGames().filter(x => x.id !== s.id));
+                  renderLoadGame();
+                },
+              }, ['\u00d7']),
+            ]),
+            div({ className: 'ms-item-desc' }, [dateStr]),
           ]),
-          div({ className: 'ms-item-desc' }, [dateStr + ' — Tap to resume']),
         ]));
       });
-    });
+    }, 'Saved Games');
   }
 
   // --- Map Editor list ---
@@ -172,15 +186,12 @@ export function createScreenManager({ canvas, renderer, hud }) {
     stopGame();
     hideAll();
     listEl.style.display = 'flex';
-    renderList('Map Editor', '/', (body) => {
-      const addRow = makeRow('+ New Map', 'Start with a blank grid',
-        () => router.navigate('/maps/new'));
-      addRow.style.borderColor = '#4caf50';
-      body.appendChild(addRow);
+    renderList('Cartography', '/', (body) => {
+      body.appendChild(makeAddRow('New Map', 'Start with a blank grid',
+        () => router.navigate('/maps/new')));
 
       listAllMaps().forEach(m => {
         const isBuiltin = m.id.indexOf('builtin:') === 0;
-        const dims = m.cols + 'x' + m.rows;
         const onOpen = () => {
           if (isBuiltin) {
             const copy = cloneMapForEdit(m);
@@ -190,20 +201,9 @@ export function createScreenManager({ canvas, renderer, hud }) {
             router.navigate('/maps/' + m.id);
           }
         };
-        body.appendChild(div({ className: 'ms-item ms-saved', onClick: onOpen }, [
-          div({ className: 'ms-saved-top' }, [
-            span({ className: 'ms-item-title' }, [m.name + (isBuiltin ? ' [built-in]' : '')]),
-            button({
-              className: 'ms-btn-edit',
-              title: isBuiltin ? 'Clone' : 'Edit',
-            }, [isBuiltin ? '\u29C9' : '\u270E']),
-          ]),
-          div({ className: 'ms-item-desc' }, [
-            dims + (isBuiltin ? ' — Tap to clone' : ' — Tap to edit'),
-          ]),
-        ]));
+        body.appendChild(makeMapRow(m, onOpen));
       });
-    });
+    }, 'Maps');
   }
 
   function renderMapEditorNew() {
@@ -255,47 +255,32 @@ export function createScreenManager({ canvas, renderer, hud }) {
     stopGame();
     hideAll();
     listEl.style.display = 'flex';
-    renderList('Campaign Editor', '/', (body) => {
-      const addRow = makeRow('+ New Campaign', 'Clone Classic and customize',
-        () => router.navigate('/campaigns/new'));
-      addRow.style.borderColor = '#4caf50';
-      body.appendChild(addRow);
+    renderList('Forge', '/', (body) => {
+      body.appendChild(makeAddRow('New Campaign', 'Clone Classic and customize',
+        () => router.navigate('/campaigns/new')));
 
       listAllCampaigns().forEach(c => {
-        const actionBtn = c.builtin
-          ? button({
-              className: 'ms-btn-edit',
-              title: 'Clone',
-              onClick: (/** @type {MouseEvent} */ e) => {
-                e.stopPropagation();
-                const copy = cloneCampaignForEdit(c);
-                upsertUserCampaign(copy);
-                router.navigate('/campaigns/' + copy.id);
-              },
-            }, ['\u29C9'])
-          : button({
-              className: 'ms-btn-del',
-              title: 'Delete',
-              onClick: (/** @type {MouseEvent} */ e) => {
-                e.stopPropagation();
-                deleteUserCampaign(c.id);
-                renderCampaignList();
-              },
-            }, ['\u00d7']);
-        body.appendChild(div({
-          className: 'ms-item ms-saved',
-          onClick: () => router.navigate('/campaigns/' + c.id),
-        }, [
-          div({ className: 'ms-saved-top' }, [
-            span({ className: 'ms-item-title' },
-              [c.name + (c.builtin ? ' [built-in]' : '')]),
-            actionBtn,
-          ]),
-          div({ className: 'ms-item-desc' },
-            [c.towers.length + ' towers · ' + c.monsters.length + ' monsters']),
-        ]));
+        const onAction = (/** @type {MouseEvent} */ e) => {
+          e.stopPropagation();
+          if (c.builtin) {
+            const copy = cloneCampaignForEdit(c);
+            upsertUserCampaign(copy);
+            router.navigate('/campaigns/' + copy.id);
+          } else {
+            deleteUserCampaign(c.id);
+            renderCampaignList();
+          }
+        };
+        const actionBtn = button({
+          className: c.builtin ? 'ms-btn-edit' : 'ms-btn-del',
+          title: c.builtin ? 'Clone' : 'Delete',
+          onClick: onAction,
+        }, [c.builtin ? '\u29C9' : '\u00d7']);
+        const row = makeCampaignRow(c, () => router.navigate('/campaigns/' + c.id));
+        row.querySelector('.ms-saved-top').appendChild(actionBtn);
+        body.appendChild(row);
       });
-    });
+    }, 'Campaigns');
   }
 
   function renderCampaignEditorNew() {
@@ -320,9 +305,17 @@ export function createScreenManager({ canvas, renderer, hud }) {
     settingsEl.style.display = 'flex';
     settingsEl.innerHTML = '';
 
+    const back = button({
+      className: 'btn btn-ghost btn-icon',
+      title: 'Back',
+      onClick: () => router.navigate('/'),
+    }, [icon('arrowLeft', { size: 14 })]);
     settingsEl.appendChild(div({ className: 'screen-header' }, [
-      button({ onClick: () => router.navigate('/') }, ['\u2190 Back']),
-      span({ className: 'screen-title' }, ['Settings']),
+      back,
+      div({ className: 'screen-header-text' }, [
+        div({ className: 'screen-eyebrow' }, ['Sanctum']),
+        span({ className: 'screen-title' }, ['Settings']),
+      ]),
     ]));
 
     const current = loadAppSettings();
@@ -332,55 +325,42 @@ export function createScreenManager({ canvas, renderer, hud }) {
       location.reload();
     };
 
-    settingsEl.appendChild(div({ className: 'settings-group' }, [
-      h2({ style: { color: '#81d4fa', fontSize: '14px', marginBottom: '8px' } }, ['Renderer']),
+    settingsEl.appendChild(div({ className: 'settings-group panel panel-ornate' }, [
+      h2({}, ['Renderer']),
       label({}, [
         input({
           type: 'radio', name: 'rendererType', value: 'canvas',
           checked: current.rendererType === 'canvas',
           onChange: () => pickRenderer('canvas'),
         }),
-        'Canvas (default)',
+        'Canvas',
       ]),
-      div({ className: 'settings-hint' }, ['2D top-down view, reliably fast.']),
+      div({ className: 'settings-hint' }, ['2D top-down view. Reliably fast on every device.']),
       label({}, [
         input({
           type: 'radio', name: 'rendererType', value: 'webgl',
           checked: current.rendererType === 'webgl',
           onChange: () => pickRenderer('webgl'),
         }),
-        'WebGL (experimental)',
+        'WebGL  \u00b7  experimental',
       ]),
       div({ className: 'settings-hint' }, [
         'Isometric 3D via Three.js. Drag to pan, scroll to zoom. Still in development.',
       ]),
     ]));
 
-    settingsEl.appendChild(div({
-      className: 'screen-body',
-      style: {
-        marginTop: '32px',
-        padding: '16px',
-        borderTop: '1px solid #333',
-        textAlign: 'center',
-        maxWidth: '400px',
-        width: '100%',
-      },
-    }, [
+    settingsEl.appendChild(div({ className: 'settings-group panel' }, [
+      h2({}, ['Local Data']),
+      div({ className: 'settings-hint', style: { marginLeft: 0, marginBottom: '12px' } },
+        ['Removes user maps, campaigns, saved games, and app settings from this browser.']),
       button({
-        style: {
-          background: '#4a1a1a', border: '1px solid #f44336', color: '#f44336',
-          padding: '10px 16px', fontFamily: 'monospace', fontSize: '14px',
-          borderRadius: '4px', cursor: 'pointer',
-        },
+        className: 'btn btn-danger',
         onClick: () => {
           if (!confirm('Delete all saved maps, campaigns, and saved games? This cannot be undone.')) return;
           clearAllStorage();
           location.reload();
         },
-      }, ['Clear all local data']),
-      div({ style: { fontSize: '12px', color: '#555', marginTop: '8px' } },
-        ['Removes user maps, campaigns, saved games, and app settings from this browser.']),
+      }, [icon('trash', { size: 14 }), 'Clear All Local Data']),
     ]));
   }
 
@@ -478,21 +458,78 @@ export function createScreenManager({ canvas, renderer, hud }) {
   }
 
   // --- List screen helpers ---
-  function renderList(title, backPath, fillBody) {
+  function renderList(title, backPath, fillBody, eyebrow) {
     listEl.innerHTML = '';
-    listEl.appendChild(div({ className: 'screen-header' }, [
-      button({ onClick: () => router.navigate(backPath) }, ['\u2190 Back']),
+    const back = button({
+      className: 'btn btn-ghost btn-icon',
+      onClick: () => router.navigate(backPath),
+      title: 'Back',
+    }, [icon('arrowLeft', { size: 14 })]);
+    const headerText = div({ className: 'screen-header-text' }, [
+      eyebrow ? div({ className: 'screen-eyebrow' }, [eyebrow]) : null,
       span({ className: 'screen-title' }, [title]),
-    ]));
+    ]);
+    listEl.appendChild(div({ className: 'screen-header' }, [back, headerText]));
     const body = div({ className: 'ms-list' });
     fillBody(body);
     listEl.appendChild(body);
   }
 
-  function makeRow(title, desc, onClick) {
-    return div({ className: 'ms-item', onClick }, [
-      div({ className: 'ms-item-title' }, [title]),
-      desc ? div({ className: 'ms-item-desc' }, [desc]) : null,
+  function makeRow(title, desc, onClick, opts = {}) {
+    return div({ className: 'ms-item panel panel-ornate', onClick }, [
+      opts.iconName ? div({ className: 'ms-item-icon' }, [icon(opts.iconName, { size: 18 })]) : null,
+      div({ className: 'ms-item-body' }, [
+        div({ className: 'ms-item-title' }, [title]),
+        desc ? div({ className: 'ms-item-desc' }, [desc]) : null,
+      ]),
+      span({ className: 'ms-item-arrow' }, ['›']),
+    ]);
+  }
+
+  function makeAddRow(title, desc, onClick) {
+    return div({
+      className: 'ms-item panel',
+      style: { borderStyle: 'dashed', borderColor: 'var(--verdant)' },
+      onClick,
+    }, [
+      div({
+        className: 'ms-item-icon',
+        style: { borderColor: 'var(--verdant)', color: 'var(--verdant)' },
+      }, [icon('plus', { size: 18 })]),
+      div({ className: 'ms-item-body' }, [
+        div({ className: 'ms-item-title', style: { color: 'var(--verdant)' } }, [title]),
+        desc ? div({ className: 'ms-item-desc' }, [desc]) : null,
+      ]),
+    ]);
+  }
+
+  function makeCampaignRow(c, onClick) {
+    return div({ className: 'ms-item panel panel-ornate', onClick }, [
+      div({ className: 'ms-item-icon' }, [icon('crown', { size: 18 })]),
+      div({ className: 'ms-item-body' }, [
+        div({ className: 'ms-saved-top' }, [
+          span({ className: 'ms-item-title' }, [c.name]),
+          c.builtin ? span({ className: 'ms-pip-builtin' }, ['Built-in']) : null,
+        ]),
+        div({ className: 'ms-item-desc' },
+          [c.towers.length + ' towers  ·  ' + c.monsters.length + ' monsters']),
+      ]),
+      span({ className: 'ms-item-arrow' }, ['›']),
+    ]);
+  }
+
+  function makeMapRow(m, onClick) {
+    const isBuiltin = m.id.indexOf('builtin:') === 0;
+    return div({ className: 'ms-item panel panel-ornate', onClick }, [
+      div({ className: 'ms-item-icon' }, [icon('grid', { size: 18 })]),
+      div({ className: 'ms-item-body' }, [
+        div({ className: 'ms-saved-top' }, [
+          span({ className: 'ms-item-title' }, [m.name]),
+          isBuiltin ? span({ className: 'ms-pip-builtin' }, ['Built-in']) : null,
+        ]),
+        div({ className: 'ms-item-desc' }, [m.cols + ' x ' + m.rows]),
+      ]),
+      span({ className: 'ms-item-arrow' }, ['›']),
     ]);
   }
 

@@ -183,7 +183,7 @@ export function openCampaignEditor(opts) {
         div({ className: 'cfg-swatch', style: { background: em.bg || em.color } }, [em.letter]),
         span({ className: 'cfg-list-name' }, [
           em.name + ' ',
-          span({ style: { color: '#888', fontSize: '11px' } }, ['(' + em.cost + 'g)']),
+          span({ style: { color: 'var(--parchment-700)', fontFamily: 'var(--font-mono)', fontSize: '10px', letterSpacing: '0.14em' } }, ['(' + em.cost + 'g)']),
         ]),
         button({
           className: 'tree-child-rm',
@@ -659,7 +659,13 @@ function createWaveFields(entry, waveIdx, campaign) {
       textarea({
         className: 'wv-lore',
         rows: 3,
-        style: { width: '100%', padding: '6px', background: '#1a1a2a', color: '#ccc', border: '1px solid #444', borderRadius: '3px', fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' },
+        style: {
+          width: '100%', padding: '8px',
+          background: 'var(--ink-900)', color: 'var(--parchment)',
+          border: '1px solid var(--ink-600)', borderRadius: 'var(--radius-sm)',
+          fontFamily: 'var(--font-body)', fontStyle: 'italic', fontSize: '14px',
+          lineHeight: '1.5', resize: 'vertical',
+        },
       }, [entry.lore || '']),
     ]),
     fieldset({}, [

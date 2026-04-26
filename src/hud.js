@@ -8,6 +8,7 @@
 import { VERSION, FPS, DAMAGE_TYPES, ROT_NAMES, framesToSec } from './constants.js';
 import { getMergedNode, getTowerNode, getTowerSize, isTowerUnlocked } from './campaigns.js';
 import { div, span, button } from './html.js';
+import { icon } from './icons.js';
 
 /** @returns {Hud} */
 export function createHud() {
@@ -69,23 +70,29 @@ export function createHud() {
     closeBestiary();
   }
 
+  // Build pip contents once: icon + count span.
+  setupPip(goldEl,  'coin',      'gold');
+  setupPip(livesEl, 'heart',     'lives');
+  setupPip(waveEl,  'hourglass', 'wave');
+  setupPip(scoreEl, 'star',      'score');
+
   /** @param {GameState} state @param {Campaign} campaign */
   function update(state, campaign) {
     lastState = state;
     lastCampaign = campaign;
-    goldEl.textContent  = 'G:' + state.gold;
-    livesEl.textContent = 'L:' + state.lives;
-    waveEl.textContent  = 'W:' + state.wave;
-    scoreEl.textContent = 'S:' + state.score;
+    setPipValue(goldEl,  state.gold);
+    setPipValue(livesEl, state.lives);
+    setPipValue(waveEl,  state.wave);
+    setPipValue(scoreEl, state.score);
     verEl.textContent   = 'v' + VERSION;
     phaseEl.textContent =
       state.phase === 'PLACE' ? 'PLACE TOWERS' :
       state.phase === 'WAVE'  ? 'WAVE ' + state.wave :
                                  'GAME OVER';
     phaseEl.style.color =
-      state.phase === 'WAVE'     ? '#ff9800' :
-      state.phase === 'GAMEOVER' ? '#f44336' :
-                                    '#4caf50';
+      state.phase === 'WAVE'     ? 'var(--ember-bright)' :
+      state.phase === 'GAMEOVER' ? 'var(--ember-bright)' :
+                                    'var(--verdant)';
   }
 
   /** @param {GameState} state @param {Campaign} campaign */
@@ -206,6 +213,22 @@ export function createHud() {
   };
 }
 
+function setupPip(el, iconName, dataKey) {
+  if (el.dataset.pipReady === '1') return;
+  el.innerHTML = '';
+  el.appendChild(icon(iconName, { size: 12 }));
+  const v = document.createElement('span');
+  v.dataset.pipValue = dataKey;
+  v.textContent = '0';
+  el.appendChild(v);
+  el.dataset.pipReady = '1';
+}
+
+function setPipValue(el, n) {
+  const v = el.querySelector('span[data-pip-value]');
+  if (v) v.textContent = String(n);
+}
+
 function emptyHandlers() {
   const noop = () => {};
   return {
@@ -309,8 +332,9 @@ function toggleBestiary(state, campaign) {
     className: 'bestiary-overlay',
     onClick: (/** @type {MouseEvent} */ e) => { if (e.target === ov) ov.remove(); },
   }, [
-    div({ className: 'bestiary-box' }, [
+    div({ className: 'bestiary-box panel panel-ornate' }, [
       div({ className: 'bestiary-title' }, ['Bestiary']),
+      div({ className: 'divider-ornate', style: { margin: '12px 0 14px' } }, [span({}, ['✦'])]),
       ...rows,
       div({
         className: 'bestiary-close',
