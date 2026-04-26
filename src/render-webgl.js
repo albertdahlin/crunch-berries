@@ -132,9 +132,36 @@ export function createWebGLRenderer(canvas) {
   const circleLineGeom  = makeCircleLineGeom(1, 48);
   const boxEdgesGeom    = new THREE.EdgesGeometry(boxGeom);
 
+  // Tile shapes: keep the plain box — InstancedMesh + setColorAt + uv-mapped
+  // texture already gives each tile organic variation.
+  const tileGeom        = boxGeom;
+  // Mountain peaks: 4-sided pyramid for a jagged silhouette.
+  const peakGeom        = new THREE.ConeGeometry(0.55, 1, 4);
+  // Tree decoration layered on forest tiles.
+  const treeTrunkGeom   = new THREE.CylinderGeometry(0.04, 0.06, 0.18, 6);
+  const treeCanopyGeom  = new THREE.ConeGeometry(0.16, 0.34, 6);
+
+  // Entity primitives — small / scaled to fit the per-frame entity rebuild.
+  const smallBoxGeom    = new THREE.BoxGeometry(1, 1, 1); // alias of boxGeom
+  const smallSphereGeom = new THREE.SphereGeometry(0.12, 10, 8);
+  const armGeom         = new THREE.BoxGeometry(0.08, 0.32, 0.08);
+  const legGeom         = new THREE.BoxGeometry(0.12, 0.28, 0.12);
+  const wingGeom        = makeWingGeom();
+  const orbGeom         = new THREE.SphereGeometry(0.13, 10, 8);
+  const spearGeom       = new THREE.CylinderGeometry(0.025, 0.025, 0.7, 6);
+  const spearTipGeom    = new THREE.ConeGeometry(0.06, 0.18, 6);
+  const helmetGeom      = new THREE.ConeGeometry(0.18, 0.16, 8);
+  const wispGeom        = makeWispGeom();
+  const merlonGeom      = new THREE.BoxGeometry(0.18, 0.18, 0.18);
+
   const SHARED_GEOM = new WeakSet();
-  [boxGeom, cylinderGeom, headGeom, coneGeom, sphereGeom, circleLineGeom, boxEdgesGeom]
-    .forEach(g => SHARED_GEOM.add(g));
+  [
+    boxGeom, cylinderGeom, headGeom, coneGeom, sphereGeom,
+    circleLineGeom, boxEdgesGeom, tileGeom, peakGeom,
+    treeTrunkGeom, treeCanopyGeom, smallBoxGeom, smallSphereGeom,
+    armGeom, legGeom, wingGeom, orbGeom, spearGeom, spearTipGeom,
+    helmetGeom, wispGeom, merlonGeom,
+  ].forEach(g => SHARED_GEOM.add(g));
 
   // Edges for shared geometries, built lazily and cached. Threshold=30° hides
   // smooth sphere/cylinder radial edges while keeping silhouette / sharp
@@ -173,6 +200,69 @@ export function createWebGLRenderer(canvas) {
     }
     g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
     return g;
+  }
+
+  // Chamfered tile: 1×1 in xz, 1 in y. Top face is 0.94×0.94, walls slope out
+  // to 0.98×0.98 at the bottom. Renders as a "stone tile" silhouette under
+  // the iso camera. UVs map the canvas texture onto the top.
+  function makeChamferedTile() {
+    const top = 0.47;   // half-extent at top
+    const bot = 0.49;   // half-extent at bottom
+    const h = 1;
+    const verts = [
+      // top face (4 vertices, +y)
+      -top,  h, -top,    top,  h, -top,    top,  h,  top,   -top,  h,  top,
+      // bottom face
+      -bot,  0, -bot,    bot,  0, -bot,    bot,  0,  bot,   -bot,  0,  bot,
+    ];
+    const uvs = [
+      0, 1, 1, 1, 1, 0, 0, 0,        // top, mapped from canvas texture
+      0, 1, 1, 1, 1, 0, 0, 0,        // bottom (unused but kept consistent)
+    ];
+    const idx = [
+      0, 1, 2, 0, 2, 3,                  // top
+      // 4 trapezoid sides: top-edge connects to bottom-edge
+      0, 4, 5, 0, 5, 1,                  // -z side
+      1, 5, 6, 1, 6, 2,                  // +x side
+      2, 6, 7, 2, 7, 3,                  // +z side
+      3, 7, 4, 3, 4, 0,                  // -x side
+    ];
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    g.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
+  }
+
+  // Stylised wing: thin diamond, anchored at the body-side narrow tip.
+  function makeWingGeom() {
+    const verts = [
+      0,    0, 0,
+      0.34, 0.04, -0.10,
+      0.46, 0,    0,
+      0.34, -0.04, 0.10,
+    ];
+    const idx = [0,1,2, 0,2,3, 0,2,1, 0,3,2];  // double-sided
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
+  }
+
+  // Wisp: tall lathed teardrop for shade-like hovering monsters.
+  function makeWispGeom() {
+    const points = [];
+    const segs = 7;
+    for (let i = 0; i <= segs; i++) {
+      const t = i / segs;
+      // taper sharply to top, fuller at the lower-third
+      const r = 0.22 * Math.sin(Math.PI * t * 0.85) + 0.04;
+      const y = t * 0.7;
+      points.push(new THREE.Vector2(r, y));
+    }
+    return new THREE.LatheGeometry(points, 12);
   }
 
   // --- Camera & input ---
@@ -276,38 +366,110 @@ export function createWebGLRenderer(canvas) {
     tileMeshes.length = 0;
 
     // Count tiles per ground type so each InstancedMesh gets a tight size.
+    // Mountains are split off into their own pyramid mesh; forests get an
+    // extra tree-decoration mesh layered on top of the ground tile.
     /** @type {Map<number, number>} */
     const countByType = new Map();
+    let forestTiles = 0;
+    let mountainTiles = 0;
     for (let i = 0; i < map.cols * map.rows; i++) {
       const t = map.ground[i];
+      const gt = GROUND_TYPES[t] || GROUND_TYPES[0];
+      if (gt.name === 'Mountain') { mountainTiles++; continue; }
       countByType.set(t, (countByType.get(t) || 0) + 1);
+      if (gt.name === 'Forest') forestTiles++;
     }
 
     /** @type {Map<number, THREE.InstancedMesh>} */
     const meshByType = new Map();
     for (const [typeId, count] of countByType) {
-      const mesh = new THREE.InstancedMesh(boxGeom, getTileMaterial(typeId), count);
-      mesh.castShadow = true;
+      const mesh = new THREE.InstancedMesh(tileGeom, getTileMaterial(typeId), count);
+      mesh.castShadow = false;       // flat tiles barely cast useful shadows
       mesh.receiveShadow = true;
-      mesh.count = 0;  // we'll fill in via setMatrixAt and bump count per write
+      mesh.count = 0;
       meshByType.set(typeId, mesh);
       tileMeshes.push(mesh);
       tileRoot.add(mesh);
+    }
+    // Mountain mesh: pyramidal peaks on a base block. We reuse the box mesh
+    // for the base (tucked into the same InstancedMesh as grass-style tiles
+    // would be too complicated) by drawing a short box plus a pyramid.
+    /** @type {?THREE.InstancedMesh} */
+    let mountainMesh = null;
+    /** @type {?THREE.InstancedMesh} */
+    let mountainPeak = null;
+    if (mountainTiles > 0) {
+      const baseMatId = GROUND_TYPES.findIndex(g => g.name === 'Mountain');
+      const baseMat = baseMatId >= 0 ? getTileMaterial(baseMatId) : getTileMaterial(0);
+      mountainMesh = new THREE.InstancedMesh(tileGeom, baseMat, mountainTiles);
+      mountainMesh.castShadow = true;
+      mountainMesh.receiveShadow = true;
+      mountainMesh.count = 0;
+      tileMeshes.push(mountainMesh);
+      tileRoot.add(mountainMesh);
+
+      mountainPeak = new THREE.InstancedMesh(peakGeom, lambertMat(brightTileColor(GROUND_TYPES[baseMatId].bg).getStyle()), mountainTiles);
+      mountainPeak.castShadow = true;
+      mountainPeak.receiveShadow = true;
+      mountainPeak.count = 0;
+      tileMeshes.push(mountainPeak);
+      tileRoot.add(mountainPeak);
+    }
+    // Forest tree decorations: small canopy cones on every forest tile.
+    /** @type {?THREE.InstancedMesh} */
+    let treeCanopy = null;
+    /** @type {?THREE.InstancedMesh} */
+    let treeTrunk = null;
+    if (forestTiles > 0) {
+      treeCanopy = new THREE.InstancedMesh(treeCanopyGeom, lambertMat('#2c5a2e'), forestTiles);
+      treeCanopy.castShadow = true;
+      treeTrunk  = new THREE.InstancedMesh(treeTrunkGeom,  lambertMat('#3a2a1a'), forestTiles);
+      treeTrunk.castShadow = true;
+      treeCanopy.count = 0;
+      treeTrunk.count = 0;
+      tileMeshes.push(treeCanopy, treeTrunk);
+      tileRoot.add(treeCanopy);
+      tileRoot.add(treeTrunk);
     }
 
     const _matrix = new THREE.Matrix4();
     const _pos    = new THREE.Vector3();
     const _quat   = new THREE.Quaternion();
     const _scl    = new THREE.Vector3();
+    const _color  = new THREE.Color();
     for (let row = 0; row < map.rows; row++) {
       for (let col = 0; col < map.cols; col++) {
         const i = row * map.cols + col;
         const typeId = map.ground[i];
         const gt = GROUND_TYPES[typeId] || GROUND_TYPES[0];
+
+        if (gt.name === 'Mountain') {
+          // Short base + tall peak so the silhouette has a real point on top.
+          if (!mountainMesh || !mountainPeak) continue;
+          const baseH = 0.7;
+          _pos.set(col + 0.5, baseH / 2, row + 0.5);
+          _scl.set(0.98, baseH, 0.98);
+          _matrix.compose(_pos, _quat, _scl);
+          mountainMesh.setMatrixAt(mountainMesh.count, _matrix);
+          jitterColor(_color, 0.08, hashTile(col, row));
+          mountainMesh.setColorAt(mountainMesh.count, _color);
+          mountainMesh.count++;
+
+          const peakH = 1.1 + 0.15 * Math.sin(hashTile(col, row) * 11.13);
+          _pos.set(col + 0.5, baseH + peakH / 2 - 0.04, row + 0.5);
+          _scl.set(1, peakH, 1);
+          _quat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), hashTile(col, row) * Math.PI);
+          _matrix.compose(_pos, _quat, _scl);
+          mountainPeak.setMatrixAt(mountainPeak.count, _matrix);
+          mountainPeak.setColorAt(mountainPeak.count, _color);
+          mountainPeak.count++;
+          _quat.identity();
+          continue;
+        }
+
         const hgt =
-          gt.blocksSight       ? 1.5  :        // mountain
           gt.name === 'Water'  ? 0.08 :        // water sits low
-          gt.name === 'Forest' ? 0.35 :        // forest slightly raised
+          gt.name === 'Forest' ? 0.30 :        // forest slightly raised
                                  0.2;          // grass / road / swamp
         _pos.set(col + 0.5, hgt / 2, row + 0.5);
         _scl.set(0.98, hgt, 0.98);
@@ -315,10 +477,49 @@ export function createWebGLRenderer(canvas) {
         const mesh = meshByType.get(typeId);
         if (!mesh) continue;
         mesh.setMatrixAt(mesh.count, _matrix);
+        // Per-tile color jitter — gives the field of grass texture
+        // organic variation without exporting per-tile materials.
+        const amt = gt.name === 'Road' ? 0.04 : 0.08;
+        jitterColor(_color, amt, hashTile(col, row));
+        mesh.setColorAt(mesh.count, _color);
         mesh.count++;
+
+        if (gt.name === 'Forest' && treeCanopy && treeTrunk) {
+          const hash = hashTile(col, row);
+          const offX = (hash % 7 - 3) * 0.05;
+          const offZ = ((hash >> 3) % 7 - 3) * 0.05;
+          const sc = 0.85 + (hash % 5) * 0.06;
+          const trunkY = hgt + 0.09;
+          const canopyY = hgt + 0.30 + (hash % 3) * 0.02;
+          _pos.set(col + 0.5 + offX, trunkY, row + 0.5 + offZ);
+          _scl.set(sc, sc, sc);
+          _matrix.compose(_pos, _quat, _scl);
+          treeTrunk.setMatrixAt(treeTrunk.count++, _matrix);
+          _pos.set(col + 0.5 + offX, canopyY, row + 0.5 + offZ);
+          _scl.set(sc, sc, sc);
+          _matrix.compose(_pos, _quat, _scl);
+          treeCanopy.setMatrixAt(treeCanopy.count++, _matrix);
+        }
       }
     }
-    for (const m of tileMeshes) m.instanceMatrix.needsUpdate = true;
+    for (const m of tileMeshes) {
+      m.instanceMatrix.needsUpdate = true;
+      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    }
+  }
+
+  // Per-tile color jitter using a deterministic hash so tiles look the
+  // same on every reload. amt is the +/- HSL-lightness range.
+  function jitterColor(out, amt, hash) {
+    const offset = ((hash % 1000) / 1000) * 2 - 1;  // [-1, 1)
+    const v = 1 + offset * amt;
+    out.setRGB(v, v, v);
+    return out;
+  }
+  function hashTile(c, r) {
+    let h = (c * 73856093) ^ (r * 19349663);
+    h = (h ^ (h >>> 13)) * 1274126177;
+    return Math.abs(h ^ (h >>> 16)) >>> 0;
   }
 
   function clearEntities() {
@@ -337,18 +538,19 @@ export function createWebGLRenderer(canvas) {
     const g = new THREE.Group();
     g.position.set(t.x + size.w / 2, 0, t.y + size.h / 2);
 
-    const base = outlinedMesh(boxGeom, lambertMat(node.bg || '#444'));
-    base.scale.set(size.w * 0.9, 0.4, size.h * 0.9);
-    base.position.y = 0.2;
-    g.add(base);
-
-    const top = outlinedMesh(coneGeom, lambertMat(node.color || '#fff'));
-    top.position.y = 0.4 + 0.35;
-    g.add(top);
+    // Pick a silhouette by tower id; fall back to a generic box+cone stack
+    // for user campaigns that introduce custom towers.
+    const baseId = (campaign.towers[t.typeIdx] || {}).id || node.id;
+    const builder = TOWER_BUILDERS[baseId] || buildGenericTower;
+    const towerArt = builder(node, size);
+    g.add(towerArt);
+    // Records the top of the base so the rotation arrow / health bar / range
+    // ring can layer above the tower without collision math.
+    const topY = towerArt.userData.topY || 0.9;
 
     if (t.hp < t.maxHp) {
       const ratio = Math.max(0, Math.min(1, t.hp / t.maxHp));
-      const barY = 0.4 + 0.7 + 0.25;
+      const barY = topY + 0.18;
       const bg = new THREE.Mesh(boxGeom, basicMat('#333333'));
       bg.scale.set(size.w * 0.8, 0.04, 0.06);
       bg.position.set(0, barY, 0);
@@ -370,7 +572,7 @@ export function createWebGLRenderer(canvas) {
       const dx = [0, 1, 0, -1][rot];
       const dz = [-1, 0, 1, 0][rot];
       const barLen = Math.min(size.w, size.h) * 0.3;
-      const barY = 0.5;
+      const barY = topY * 0.55;
       const mat = lambertMat(node.color || '#fff');
 
       const bar = outlinedMesh(boxGeom, mat);
@@ -394,8 +596,8 @@ export function createWebGLRenderer(canvas) {
 
     if (state.selectedPlacedTower === t) {
       const outline = new THREE.LineSegments(boxEdgesGeom, lineMat('#ffd700'));
-      outline.scale.copy(base.scale).multiplyScalar(1.02);
-      outline.position.copy(base.position);
+      outline.scale.set(size.w * 0.92, 0.4, size.h * 0.92);
+      outline.position.y = 0.2;
       g.add(outline);
 
       const range = node.range || 0;
@@ -411,25 +613,137 @@ export function createWebGLRenderer(canvas) {
     return g;
   }
 
-  function monsterGroup(m) {
+  // ---- Tower silhouette builders ----
+  // Each builder returns a Group anchored at the tower's tile centre (y=0
+  // is ground). Set userData.topY to the local y of the tower's highest
+  // useful surface so the surrounding code can layer health bars / arrows
+  // above the silhouette.
+
+  function buildGenericTower(node, size) {
+    const g = new THREE.Group();
+    const base = outlinedMesh(boxGeom, lambertMat(node.bg || '#444'));
+    base.scale.set(size.w * 0.9, 0.4, size.h * 0.9);
+    base.position.y = 0.2;
+    g.add(base);
+    const top = outlinedMesh(coneGeom, lambertMat(node.color || '#fff'));
+    top.position.y = 0.4 + 0.35;
+    g.add(top);
+    g.userData.topY = 0.4 + 0.7;
+    return g;
+  }
+
+  function buildSoldierTower(node, size) {
+    const g = new THREE.Group();
+    const baseColor = lambertMat(node.bg || '#1565c0');
+    const accent    = lambertMat(node.color || '#4fc3f7');
+    // Stone footing
+    const base = outlinedMesh(boxGeom, baseColor);
+    base.scale.set(size.w * 0.9, 0.3, size.h * 0.9);
+    base.position.y = 0.15;
+    g.add(base);
+    // Body — square torso
+    const torso = outlinedMesh(boxGeom, accent);
+    torso.scale.set(0.45, 0.45, 0.32);
+    torso.position.y = 0.30 + 0.225;
+    g.add(torso);
+    // Head — small sphere
+    const head = outlinedMesh(headGeom, lambertMat('#e1c28a'));
+    head.scale.set(1.05, 1.05, 1.05);
+    head.position.y = 0.30 + 0.45 + 0.18;
+    g.add(head);
+    // Conical helmet
+    const helm = outlinedMesh(helmetGeom, baseColor);
+    helm.position.y = 0.30 + 0.45 + 0.36;
+    g.add(helm);
+    // Spear (stationary on the right side)
+    const shaft = outlinedMesh(spearGeom, lambertMat('#5d4037'));
+    shaft.position.set(0.32, 0.30 + 0.40, 0);
+    g.add(shaft);
+    const tip = outlinedMesh(spearTipGeom, baseColor);
+    tip.position.set(0.32, 0.30 + 0.78, 0);
+    g.add(tip);
+    g.userData.topY = 0.30 + 0.92;
+    return g;
+  }
+
+  function buildMageTower(node, size) {
+    const g = new THREE.Group();
+    const baseColor = lambertMat(node.bg || '#bf360c');
+    const accent    = lambertMat(node.color || '#ff8a65');
+    // Hex-ish wide base
+    const base = outlinedMesh(boxGeom, baseColor);
+    base.scale.set(size.w * 0.92, 0.28, size.h * 0.92);
+    base.position.y = 0.14;
+    g.add(base);
+    // Stepped pedestal
+    const ped = outlinedMesh(boxGeom, baseColor);
+    ped.scale.set(size.w * 0.72, 0.22, size.h * 0.72);
+    ped.position.y = 0.28 + 0.11;
+    g.add(ped);
+    // Tall slender spire
+    const spire = outlinedMesh(coneGeom, accent);
+    spire.scale.set(0.85, 1.4, 0.85);
+    spire.position.y = 0.28 + 0.22 + 0.49;
+    g.add(spire);
+    // Floating orb — emissive accent
+    const orb = new THREE.Mesh(orbGeom, basicMat(node.color || '#ff8a65'));
+    orb.position.y = 0.28 + 0.22 + 1.10;
+    g.add(orb);
+    g.userData.topY = 0.28 + 0.22 + 1.16;
+    return g;
+  }
+
+  function buildBarricadeTower(node, size) {
+    const g = new THREE.Group();
+    const stone = lambertMat(node.bg || '#455a64');
+    // Stout wall block
+    const wall = outlinedMesh(boxGeom, stone);
+    wall.scale.set(size.w * 0.94, 0.55, size.h * 0.94);
+    wall.position.y = 0.275;
+    g.add(wall);
+    // Crenellations: 4 small blocks at the top corners
+    const c = lambertMat(node.color || '#90a4ae');
+    const ofs = 0.30;
+    [[ -ofs, -ofs ], [ ofs, -ofs ], [ -ofs, ofs ], [ ofs, ofs ]].forEach(([dx, dz]) => {
+      const m = outlinedMesh(merlonGeom, c);
+      m.position.set(dx * size.w, 0.55 + 0.09, dz * size.h);
+      g.add(m);
+    });
+    g.userData.topY = 0.55 + 0.18;
+    return g;
+  }
+
+  /** @type {Record<string, (node: any, size: any) => any>} */
+  const TOWER_BUILDERS = {
+    soldier:   buildSoldierTower,
+    mage:      buildMageTower,
+    barricade: buildBarricadeTower,
+  };
+
+  function monsterGroup(m, campaign) {
     const g = new THREE.Group();
     g.position.set(m.x, 0, m.y);
     const scale = m.renderScale || 1;
-
-    const body = outlinedMesh(cylinderGeom, lambertMat(m.color));
-    body.scale.set(scale, scale, scale);
-    body.position.y = 0.3 * scale;
-    g.add(body);
-
-    const head = new THREE.Mesh(headGeom, lambertMat(m.color));
-    head.castShadow = true;
-    head.scale.set(scale, scale, scale);
-    head.position.y = 0.65 * scale;
-    g.add(head);
+    const def = (campaign && campaign.monsters[m.typeIdx]) || {};
+    m._defId = def.id || '';
+    const archetype = MONSTER_ARCHETYPES[m._defId] || 'biped';
+    // Cycle phase derived from world position so neighbouring monsters
+    // animate out of phase — looks like a march, not a chorus.
+    const t = performance.now() / 1000;
+    const phase = (m.x + m.y) * 1.7;
+    const builder =
+      archetype === 'quadruped' ? buildQuadrupedMonster :
+      archetype === 'flyer'     ? buildFlyerMonster :
+      archetype === 'wisp'      ? buildWispMonster :
+                                  buildBipedMonster;
+    const monsterArt = builder(m, t, phase);
+    monsterArt.scale.set(scale, scale, scale);
+    g.add(monsterArt);
+    const topY = (monsterArt.userData.topY || 1.0) * scale;
 
     if (m.hp < m.maxHp) {
       const ratio = Math.max(0, Math.min(1, m.hp / m.maxHp));
-      const barY = 1.1 * scale;
+      const barY = topY + 0.18;
       const bg = new THREE.Mesh(boxGeom, basicMat('#333333'));
       bg.scale.set(0.8, 0.03, 0.05);
       bg.position.set(0, barY, 0);
@@ -455,6 +769,170 @@ export function createWebGLRenderer(canvas) {
     }
 
     return g;
+  }
+
+  // ---- Monster archetype builders ----
+  // Each receives the monster, current time (s), and per-instance phase. The
+  // group's local origin is the tile centre at ground level. Set userData.topY
+  // for the health-bar layer.
+
+  /** @type {Record<string, string>} */
+  const MONSTER_ARCHETYPES = {
+    goblin: 'biped',
+    knight: 'biped',
+    troll:  'biped-heavy',
+    wolf:   'quadruped',
+    bat:    'flyer',
+    shade:  'wisp',
+  };
+
+  function buildBipedMonster(m, t, phase) {
+    const heavy = (MONSTER_ARCHETYPES[m._defId || ''] === 'biped-heavy');
+    const g = new THREE.Group();
+    const skin = lambertMat(m.color);
+    // Body
+    const body = outlinedMesh(boxGeom, skin);
+    const bw = heavy ? 0.55 : 0.42;
+    const bh = heavy ? 0.5  : 0.42;
+    const bd = heavy ? 0.40 : 0.32;
+    body.scale.set(bw, bh, bd);
+    const bobY = Math.sin(t * 6 + phase) * 0.04;
+    body.position.y = 0.35 + bobY;
+    g.add(body);
+    // Head
+    const head = outlinedMesh(headGeom, skin);
+    const hs = heavy ? 1.4 : 1.0;
+    head.scale.set(hs, hs, hs);
+    head.position.y = 0.35 + bh / 2 + 0.18 * hs + bobY;
+    g.add(head);
+    // Eyes
+    addEyes(g, head.position, 0.08, hs * 0.13);
+    // Legs — opposite phase for walk illusion
+    const swing = Math.sin(t * 6 + phase) * 0.4;
+    const leftLeg  = outlinedMesh(legGeom, skin);
+    const rightLeg = outlinedMesh(legGeom, skin);
+    leftLeg.scale.set(0.9, heavy ? 1.2 : 1.0, 0.9);
+    rightLeg.scale.set(0.9, heavy ? 1.2 : 1.0, 0.9);
+    leftLeg.position.set(-0.1, 0.13, 0);
+    rightLeg.position.set(0.1, 0.13, 0);
+    leftLeg.rotation.x  =  swing * 0.8;
+    rightLeg.rotation.x = -swing * 0.8;
+    g.add(leftLeg);
+    g.add(rightLeg);
+    // Heavy bipeds get hanging arms
+    if (heavy) {
+      const armSwing = Math.sin(t * 6 + phase + Math.PI) * 0.3;
+      const leftArm  = outlinedMesh(armGeom, skin);
+      const rightArm = outlinedMesh(armGeom, skin);
+      leftArm.scale.set(1.2, 1.4, 1.2);
+      rightArm.scale.set(1.2, 1.4, 1.2);
+      leftArm.position.set(-bw / 2 - 0.04, 0.45 + bobY, 0);
+      rightArm.position.set(bw / 2 + 0.04, 0.45 + bobY, 0);
+      leftArm.rotation.x  = -armSwing;
+      rightArm.rotation.x =  armSwing;
+      g.add(leftArm);
+      g.add(rightArm);
+    }
+    g.userData.topY = 0.35 + bh / 2 + 0.36 * hs;
+    return g;
+  }
+
+  function buildQuadrupedMonster(m, t, phase) {
+    const g = new THREE.Group();
+    const skin = lambertMat(m.color);
+    // Long horizontal body
+    const body = outlinedMesh(boxGeom, skin);
+    body.scale.set(0.36, 0.30, 0.58);
+    const bobY = Math.sin(t * 8 + phase) * 0.025;
+    body.position.y = 0.30 + bobY;
+    g.add(body);
+    // Head jutting forward
+    const head = outlinedMesh(boxGeom, skin);
+    head.scale.set(0.28, 0.26, 0.26);
+    head.position.set(0, 0.32 + bobY, 0.38);
+    g.add(head);
+    addEyes(g, head.position, 0.07, 0.10);
+    // Tail
+    const tail = outlinedMesh(boxGeom, skin);
+    tail.scale.set(0.10, 0.10, 0.18);
+    tail.position.set(0, 0.34 + bobY, -0.34);
+    tail.rotation.x = -0.6 + Math.sin(t * 6 + phase) * 0.2;
+    g.add(tail);
+    // Four legs — front pair anti-phase to back pair (canter)
+    const swingA = Math.sin(t * 8 + phase) * 0.45;
+    const swingB = Math.sin(t * 8 + phase + Math.PI) * 0.45;
+    const legPositions = [
+      [ -0.13, -0.20, swingA ],   // back-left
+      [  0.13, -0.20, swingB ],   // back-right
+      [ -0.13,  0.22, swingB ],   // front-left
+      [  0.13,  0.22, swingA ],   // front-right
+    ];
+    for (const [lx, lz, lswing] of legPositions) {
+      const leg = outlinedMesh(legGeom, skin);
+      leg.scale.set(0.8, 0.9, 0.8);
+      leg.position.set(lx, 0.13, lz);
+      leg.rotation.x = lswing;
+      g.add(leg);
+    }
+    g.userData.topY = 0.55;
+    return g;
+  }
+
+  function buildFlyerMonster(m, t, phase) {
+    const g = new THREE.Group();
+    const skin = lambertMat(m.color);
+    // Hover offset
+    const hover = 0.55 + Math.sin(t * 3 + phase) * 0.12;
+    // Compact rounded body
+    const body = outlinedMesh(headGeom, skin);
+    body.scale.set(1.4, 1.2, 1.4);
+    body.position.y = hover;
+    g.add(body);
+    // Eyes
+    addEyes(g, body.position, 0.13, 0.09);
+    // Two flapping wings — rotate around y to flap
+    const flap = Math.sin(t * 14 + phase) * 0.6;
+    const leftWing  = outlinedMesh(wingGeom, skin);
+    const rightWing = outlinedMesh(wingGeom, skin);
+    leftWing.position.set(-0.12, hover + 0.04, 0);
+    rightWing.position.set(0.12, hover + 0.04, 0);
+    leftWing.rotation.set(0, Math.PI, -flap);
+    rightWing.rotation.set(0, 0, flap);
+    g.add(leftWing);
+    g.add(rightWing);
+    g.userData.topY = hover + 0.2;
+    return g;
+  }
+
+  function buildWispMonster(m, t, phase) {
+    const g = new THREE.Group();
+    const skin = lambertMat(m.color);
+    const hover = 0.18 + Math.sin(t * 2 + phase) * 0.05;
+    // Tapered hovering body
+    const body = outlinedMesh(wispGeom, skin);
+    body.position.y = hover;
+    body.rotation.y = Math.sin(t * 1.5 + phase) * 0.2;
+    g.add(body);
+    // Glowing eye in the upper part of the wisp
+    const eye = new THREE.Mesh(smallSphereGeom, basicMat('#fff3a0'));
+    eye.scale.set(0.9, 0.9, 0.9);
+    eye.position.y = hover + 0.55;
+    g.add(eye);
+    g.userData.topY = hover + 0.7;
+    return g;
+  }
+
+  // Two small black sphere "eyes" in front of a head position.
+  function addEyes(parent, headPos, sep, size) {
+    const eyeMat = basicMat('#0a0a14');
+    const left = new THREE.Mesh(smallSphereGeom, eyeMat);
+    const right = new THREE.Mesh(smallSphereGeom, eyeMat);
+    left.scale.set(size, size, size);
+    right.scale.set(size, size, size);
+    left.position.set(-sep, headPos.y + 0.02, headPos.z + 0.18);
+    right.position.set(sep, headPos.y + 0.02, headPos.z + 0.18);
+    parent.add(left);
+    parent.add(right);
   }
 
   function projectileMesh(p) {
@@ -574,7 +1052,7 @@ export function createWebGLRenderer(canvas) {
     clearEntities();
     for (const t of state.towers) entityRoot.add(towerGroup(t, state, campaign));
     for (const m of state.monsters) {
-      if (m.hp > 0) entityRoot.add(monsterGroup(m));
+      if (m.hp > 0) entityRoot.add(monsterGroup(m, campaign));
     }
     for (const p of state.projectiles) entityRoot.add(projectileMesh(p));
 
