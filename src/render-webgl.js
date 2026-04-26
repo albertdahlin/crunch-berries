@@ -29,15 +29,16 @@ export function createWebGLRenderer(canvas) {
   const three = new THREE.WebGLRenderer({ canvas, antialias: true });
   three.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   three.toneMapping = THREE.ACESFilmicToneMapping;
-  three.toneMappingExposure = 1.35;
+  three.toneMappingExposure = 1.15;
   three.shadowMap.enabled = true;
   three.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
-  const FOG_COLOR = '#161628';
+  // Warm-tinted dusk fog. The scene fades to deep ember rather than neutral
+  // black, which keeps the Ashenhold mood consistent edge-to-edge.
+  const FOG_COLOR = '#1a1224';
   scene.background = new THREE.Color(FOG_COLOR);
-  // Subtle exp² fog to hint depth and soften the scene's far edges.
-  scene.fog = new THREE.FogExp2(FOG_COLOR, 0.008);
+  scene.fog = new THREE.FogExp2(FOG_COLOR, 0.014);
 
   // True isometric: camera offset direction (1,1,1)/√3 gives yaw = 45° and
   // elevation = arcsin(1/√3) ≈ 35.264°. Orthographic projection is what makes
@@ -47,11 +48,17 @@ export function createWebGLRenderer(canvas) {
   camera.up.set(0, 1, 0);
   const cameraOffset = new THREE.Vector3(1, 1, 1).normalize().multiplyScalar(60);
 
-  // Lighting: bright ambient so mid-tones read; hemisphere for soft fill;
-  // directional for shape definition + shadow casting.
-  scene.add(new THREE.AmbientLight(0xffffff, 0.9));
-  scene.add(new THREE.HemisphereLight(0xbfd6ff, 0x3a2a1a, 0.45));
-  const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+  // Lighting (moody warm-sun key, cool fill):
+  // - Lower ambient so the directional light actually shapes things.
+  // - Hemisphere: cool dusk sky → warm rust ground gives free environmental
+  //   gradient on every mesh.
+  // - Sun: warm-amber tinted directional, angled to throw long shadows.
+  // - Ember point light tucked into the camera target, low intensity, stays
+  //   with the player as they pan — gives a "lantern" reading on nearby
+  //   towers and monsters.
+  scene.add(new THREE.AmbientLight(0xffe8c0, 0.40));
+  scene.add(new THREE.HemisphereLight(0x6e88c4, 0x4a2818, 0.55));
+  const sun = new THREE.DirectionalLight(0xffd49a, 1.1);
   sun.position.copy(cameraOffset);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -69,6 +76,12 @@ export function createWebGLRenderer(canvas) {
   const sunTarget = new THREE.Object3D();
   scene.add(sunTarget);
   sun.target = sunTarget;
+
+  // Ember "lantern" — soft warm point light that follows the camera target
+  // so close-up entities catch a hint of fireglow. Distance/decay tuned so
+  // it falls off well before reaching the map edge.
+  const ember = new THREE.PointLight(0xff7a3a, 0.7, 14, 1.6);
+  scene.add(ember);
 
   const tileRoot   = new THREE.Group(); scene.add(tileRoot);
   const entityRoot = new THREE.Group(); scene.add(entityRoot);
@@ -285,6 +298,9 @@ export function createWebGLRenderer(canvas) {
     sunTarget.position.set(t.x, 0, t.z);
     sunTarget.updateMatrixWorld();
     sun.shadow.camera.updateProjectionMatrix();
+    // Ember lantern hangs slightly above and toward the camera from the
+    // pan target — gives close foreground meshes a warm rim.
+    ember.position.set(t.x - 1, 2.2, t.z - 1);
   }
 
   function resize() {
@@ -335,12 +351,17 @@ export function createWebGLRenderer(canvas) {
   }
 
   function makeTileTexture(gt) {
-    const size = 64;
+    const size = 128;
     const canvas2d = document.createElement('canvas');
     canvas2d.width = canvas2d.height = size;
     const ctx = canvas2d.getContext('2d');
     const base = brightTileColor(gt.bg);
-    ctx.fillStyle = hex(base);
+    // Subtle base gradient — slightly darker at one corner so flat tiles get
+    // a hint of variation even before the per-type pattern lands.
+    const bg = ctx.createLinearGradient(0, 0, size, size);
+    bg.addColorStop(0, shadeColor(base, 0.04));
+    bg.addColorStop(1, shadeColor(base, -0.06));
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, size, size);
     // Per-type overlay pattern.
     switch (gt.name) {
@@ -351,6 +372,7 @@ export function createWebGLRenderer(canvas) {
       case 'Forest':   drawForest(ctx, size, base); break;
       case 'Mountain': drawMountain(ctx, size, base); break;
     }
+    drawTileVignette(ctx, size, base);
     const tex = new THREE.CanvasTexture(canvas2d);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.anisotropy = three.capabilities.getMaxAnisotropy();
@@ -1141,102 +1163,282 @@ function shadeColor(c, amt) {
   return hex(o);
 }
 
+// Tile vignette: darken the outer ring so individual tiles read as discrete
+// stones rather than blending into a continuous field. Uses a radial gradient
+// drawn with multiply so it composes regardless of base hue.
+function drawTileVignette(ctx, size, base) {
+  const dark = shadeColor(base, -0.18);
+  ctx.save();
+  ctx.globalAlpha = 0.45;
+  // Top + bottom + left + right narrow gradient bands.
+  const inset = Math.round(size * 0.08);
+  const grad = ctx.createLinearGradient(0, 0, 0, inset);
+  grad.addColorStop(0, dark);
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, inset);
+  const grad2 = ctx.createLinearGradient(0, size - inset, 0, size);
+  grad2.addColorStop(0, 'rgba(0,0,0,0)');
+  grad2.addColorStop(1, dark);
+  ctx.fillStyle = grad2;
+  ctx.fillRect(0, size - inset, size, inset);
+  const grad3 = ctx.createLinearGradient(0, 0, inset, 0);
+  grad3.addColorStop(0, dark);
+  grad3.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad3;
+  ctx.fillRect(0, 0, inset, size);
+  const grad4 = ctx.createLinearGradient(size - inset, 0, size, 0);
+  grad4.addColorStop(0, 'rgba(0,0,0,0)');
+  grad4.addColorStop(1, dark);
+  ctx.fillStyle = grad4;
+  ctx.fillRect(size - inset, 0, inset, size);
+  ctx.restore();
+}
+
 function drawGrass(ctx, size, base) {
-  ctx.fillStyle = shadeColor(base, -0.1);
-  for (let i = 0; i < 140; i++) {
+  // Layered tufts: dark blades (back) + mid blades + occasional bright tips
+  // and tiny wildflowers.
+  const dark   = shadeColor(base, -0.14);
+  const mid    = shadeColor(base, -0.04);
+  const bright = shadeColor(base, 0.16);
+  // Long under-blades
+  ctx.fillStyle = dark;
+  for (let i = 0; i < 220; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
-    ctx.fillRect(x, y, 1, 1 + Math.random() * 2);
+    ctx.fillRect(x, y, 1, 2 + Math.random() * 3);
   }
-  ctx.fillStyle = shadeColor(base, 0.1);
-  for (let i = 0; i < 40; i++) {
+  // Mid blades at slight angle (3-pixel diagonal flecks)
+  ctx.fillStyle = mid;
+  for (let i = 0; i < 90; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    ctx.fillRect(x, y, 1, 2);
+    ctx.fillRect(x + 1, y + 1, 1, 2);
+  }
+  // Bright highlights — sun-catching tips
+  ctx.fillStyle = bright;
+  for (let i = 0; i < 35; i++) {
     ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
+  }
+  // Sparse wildflowers — small saturated points
+  const flowers = ['#f6d36c', '#dac9f0', '#ec8a8a'];
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = flowers[i % flowers.length];
+    const x = Math.random() * size, y = Math.random() * size;
+    ctx.fillRect(x, y, 1, 1);
+    ctx.fillRect(x + 1, y, 1, 1);
+    ctx.fillRect(x, y + 1, 1, 1);
   }
 }
 
 function drawRoad(ctx, size, base) {
-  // Tire-track style bands + gritty noise.
-  ctx.strokeStyle = shadeColor(base, -0.15);
-  ctx.lineWidth = 1;
-  for (let y = 10; y < size; y += 14) {
-    ctx.beginPath();
-    ctx.moveTo(0, y + Math.random());
-    ctx.lineTo(size, y + Math.random());
-    ctx.stroke();
+  // Cobblestones with mortar in between. Each stone is an irregular blob.
+  const stoneLight = shadeColor(base, 0.12);
+  const stoneMid   = shadeColor(base, -0.04);
+  const mortar     = shadeColor(base, -0.20);
+  // Mortar grid as a backdrop, then stones overlap it.
+  ctx.fillStyle = mortar;
+  ctx.fillRect(0, 0, size, size);
+  // Layout cobblestones on a jittered grid.
+  const step = 16;
+  for (let gy = 0; gy < size + step; gy += step) {
+    for (let gx = 0; gx < size + step; gx += step) {
+      const cx = gx + (Math.random() - 0.5) * 5 + (gy / step % 2 ? step / 2 : 0);
+      const cy = gy + (Math.random() - 0.5) * 5;
+      const r  = step * 0.42 + Math.random() * 2;
+      // Stone fill — random tonal pick
+      ctx.fillStyle = Math.random() < 0.6 ? stoneMid : stoneLight;
+      ctx.beginPath();
+      // Approximate cobble: 6-sided blob
+      const sides = 6;
+      for (let s = 0; s < sides; s++) {
+        const t = (s / sides) * Math.PI * 2 + Math.random() * 0.3;
+        const rr = r * (0.78 + Math.random() * 0.28);
+        const x = cx + Math.cos(t) * rr;
+        const y = cy + Math.sin(t) * rr;
+        if (s === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      // Tiny highlight on top-left of stone
+      ctx.fillStyle = shadeColor(base, 0.22);
+      ctx.fillRect(cx - r * 0.5, cy - r * 0.5, 2, 1);
+    }
   }
-  ctx.fillStyle = shadeColor(base, -0.08);
+  // Gritty dust speckles
+  ctx.fillStyle = shadeColor(base, -0.05);
   for (let i = 0; i < 80; i++) {
     ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
   }
 }
 
 function drawWater(ctx, size, base) {
-  // Scatter small ripple arcs.
-  ctx.strokeStyle = shadeColor(base, 0.22);
+  // Layered ripple bands + concentric ripple rings + sparkle.
+  const lit  = shadeColor(base, 0.28);
+  const mid  = shadeColor(base, 0.08);
+  // Horizontal wave-crest stripes (uneven)
+  ctx.strokeStyle = mid;
   ctx.lineWidth = 1;
-  for (let i = 0; i < 16; i++) {
-    const cx = Math.random() * size;
-    const cy = Math.random() * size;
+  for (let y = 8; y < size; y += 11) {
     ctx.beginPath();
-    ctx.arc(cx, cy, 1 + Math.random() * 2, 0, Math.PI * 2);
+    let prev = -3;
+    for (let x = 0; x <= size; x += 4) {
+      const yy = y + Math.sin((x + y) * 0.21) * 2 + (Math.random() - 0.5);
+      if (x === 0) ctx.moveTo(x, yy);
+      else ctx.lineTo(x, yy);
+      prev = yy;
+    }
     ctx.stroke();
   }
-  // Faint highlight specks.
-  ctx.fillStyle = shadeColor(base, 0.3);
-  for (let i = 0; i < 20; i++) {
+  // Concentric ripples — 3-4 nested circles
+  ctx.strokeStyle = lit;
+  for (let i = 0; i < 5; i++) {
+    const cx = Math.random() * size;
+    const cy = Math.random() * size;
+    const rings = 2 + Math.floor(Math.random() * 2);
+    for (let r = 1; r <= rings; r++) {
+      ctx.globalAlpha = 0.5 - r * 0.12;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 4, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+  // Sparkle highlights — bright single pixels
+  ctx.fillStyle = '#ffffff';
+  ctx.globalAlpha = 0.6;
+  for (let i = 0; i < 18; i++) {
     ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
   }
+  ctx.globalAlpha = 1;
 }
 
 function drawSwamp(ctx, size, base) {
-  ctx.fillStyle = shadeColor(base, -0.12);
-  for (let i = 0; i < 10; i++) {
-    const r = 2 + Math.random() * 4;
+  // Murky pools (radial gradient blobs) + bubble highlights + dead twigs.
+  for (let i = 0; i < 14; i++) {
+    const cx = Math.random() * size;
+    const cy = Math.random() * size;
+    const r = 4 + Math.random() * 7;
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    grad.addColorStop(0, shadeColor(base, -0.20));
+    grad.addColorStop(1, shadeColor(base, -0.02));
+    ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.arc(Math.random() * size, Math.random() * size, r, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.fillStyle = shadeColor(base, 0.08);
-  for (let i = 0; i < 30; i++) {
+  // Bubble highlights (single bright pixels at pool edges)
+  ctx.fillStyle = shadeColor(base, 0.25);
+  for (let i = 0; i < 50; i++) {
     ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
+  }
+  // Dead twigs — thin dark strokes
+  ctx.strokeStyle = shadeColor(base, -0.30);
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 6; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const len = 6 + Math.random() * 8;
+    const ang = Math.random() * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(ang) * len, y + Math.sin(ang) * len);
+    ctx.stroke();
   }
 }
 
 function drawForest(ctx, size, base) {
-  // Dense clusters of canopy circles.
-  for (let i = 0; i < 22; i++) {
-    const r = 3 + Math.random() * 3;
-    const x = Math.random() * size;
-    const y = Math.random() * size;
-    ctx.fillStyle = shadeColor(base, -0.15);
+  // Forest floor: leaf litter (3 colour scatter) + dappled light spots,
+  // since the standalone canopy meshes already provide tree tops above the
+  // tile.
+  const litterDark = shadeColor(base, -0.18);
+  const litterMid  = shadeColor(base, -0.05);
+  const leaf1      = '#7a4a26';
+  const leaf2      = '#a08a3c';
+  const leaf3      = '#3a5a2c';
+  // Mossy dappling
+  for (let i = 0; i < 30; i++) {
+    const r = 2 + Math.random() * 5;
+    ctx.fillStyle = litterDark;
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = shadeColor(base, 0.12);
-    ctx.beginPath();
-    ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.45, 0, Math.PI * 2);
+    ctx.arc(Math.random() * size, Math.random() * size, r, 0, Math.PI * 2);
     ctx.fill();
   }
+  // Smaller mid-tone moss blobs
+  for (let i = 0; i < 24; i++) {
+    ctx.fillStyle = litterMid;
+    ctx.fillRect(Math.random() * size, Math.random() * size, 2, 2);
+  }
+  // Leaf litter — tiny colored dots in 3 leaf colours
+  const leafColors = [leaf1, leaf2, leaf3];
+  for (let i = 0; i < 80; i++) {
+    ctx.fillStyle = leafColors[i % 3];
+    const x = Math.random() * size, y = Math.random() * size;
+    ctx.fillRect(x, y, 1, 1);
+    if (Math.random() < 0.3) ctx.fillRect(x + 1, y + 1, 1, 1);
+  }
+  // Dappled light spots (subtle pale circles, low opacity)
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = shadeColor(base, 0.4);
+  for (let i = 0; i < 6; i++) {
+    const cx = Math.random() * size, cy = Math.random() * size;
+    const r = 6 + Math.random() * 6;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawMountain(ctx, size, base) {
-  // Jagged cracks.
-  ctx.strokeStyle = shadeColor(base, -0.22);
+  // Stratified rock with angular fractures, dark crevasses, snow on top.
+  const crack    = shadeColor(base, -0.30);
+  const stratum1 = shadeColor(base, -0.10);
+  const stratum2 = shadeColor(base,  0.06);
+  // Horizontal stratification stripes — gives "layered rock" feel
+  for (let y = 10; y < size; y += 12 + Math.random() * 4) {
+    ctx.fillStyle = Math.random() < 0.5 ? stratum1 : stratum2;
+    ctx.globalAlpha = 0.4;
+    ctx.fillRect(0, y, size, 3 + Math.random() * 3);
+    ctx.globalAlpha = 1;
+  }
+  // Angular fracture lines — multi-segment polylines
+  ctx.strokeStyle = crack;
   ctx.lineWidth = 1;
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 12; i++) {
     let x = Math.random() * size;
     let y = Math.random() * size;
     ctx.beginPath();
     ctx.moveTo(x, y);
-    for (let j = 0; j < 3; j++) {
-      x += (Math.random() - 0.5) * 14;
-      y += (Math.random() - 0.5) * 14;
+    for (let j = 0; j < 4; j++) {
+      x += (Math.random() - 0.5) * 22;
+      y += (Math.random() - 0.5) * 22;
       ctx.lineTo(x, y);
     }
     ctx.stroke();
   }
-  // Highlight flecks (snow / glint).
-  ctx.fillStyle = shadeColor(base, 0.25);
+  // Deep crevasse shadows (short heavy strokes)
+  ctx.strokeStyle = shadeColor(base, -0.40);
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 4; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + (Math.random() - 0.5) * 14, y + (Math.random() - 0.5) * 14);
+    ctx.stroke();
+  }
+  // Snow band along the top edge — clusters of bright pixels biased upward
+  ctx.fillStyle = '#f4f1e8';
+  for (let i = 0; i < 50; i++) {
+    const x = Math.random() * size;
+    const y = Math.pow(Math.random(), 2) * size * 0.45; // bias toward 0
+    ctx.fillRect(x, y, 1, 1);
+    if (Math.random() < 0.35) ctx.fillRect(x + 1, y, 1, 1);
+  }
+  // Glint highlights scattered everywhere
+  ctx.fillStyle = shadeColor(base, 0.26);
   for (let i = 0; i < 20; i++) {
     ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
   }
