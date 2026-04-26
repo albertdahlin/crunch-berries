@@ -556,11 +556,20 @@ export function createWebGLRenderer(canvas) {
 
   // --- Entity builders (stateless per-frame) ---
 
-  function towerGroup(t, state, campaign) {
+  function towerGroup(t, state, campaign, map) {
     const node = getTowerNode(campaign, t);
     const size = getTowerSize(campaign, t.typeIdx, t.rotation);
     const g = new THREE.Group();
-    g.position.set(t.x + size.w / 2, 0, t.y + size.h / 2);
+    // Lift the tower to whichever tile sits beneath its anchor cell so it
+    // stands ON the tile (forest is 0.30 tall, grass 0.20). The footprint
+    // can span multiple cells, but tower groups are anchored from (t.x, t.y).
+    const anchorIdx = t.y * map.cols + t.x;
+    const groundType = GROUND_TYPES[map.ground[anchorIdx]] || GROUND_TYPES[0];
+    const tileTop =
+      groundType.name === 'Forest' ? 0.30 :
+      groundType.name === 'Water'  ? 0.08 :
+                                     0.20;
+    g.position.set(t.x + size.w / 2, tileTop, t.y + size.h / 2);
 
     // Pick a silhouette by tower id; fall back to a generic box+cone stack
     // for user campaigns that introduce custom towers.
@@ -1068,7 +1077,7 @@ export function createWebGLRenderer(canvas) {
     }
 
     clearEntities();
-    for (const t of state.towers) entityRoot.add(towerGroup(t, state, campaign));
+    for (const t of state.towers) entityRoot.add(towerGroup(t, state, campaign, map));
     for (const m of state.monsters) {
       if (m.hp > 0) entityRoot.add(monsterGroup(m, campaign));
     }
