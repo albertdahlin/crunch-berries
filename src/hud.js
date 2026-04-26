@@ -6,7 +6,7 @@
 /** @typedef {import('./types.js').TowerDef}    TowerDef */
 
 import { VERSION, FPS, DAMAGE_TYPES, ROT_NAMES, framesToSec } from './constants.js';
-import { getMergedNode, getTowerNode, getTowerSize, isTowerUnlocked } from './campaigns.js';
+import { getMergedNode, getTowerNode, getTowerSize, getWaveConfig, isTowerUnlocked } from './campaigns.js';
 import { div, span, button } from './html.js';
 import { icon } from './icons.js';
 
@@ -16,10 +16,11 @@ export function createHud() {
   const uiEl     = /** @type {HTMLElement} */ (document.getElementById('ui'));
   const goldEl   = /** @type {HTMLElement} */ (document.getElementById('hud-gold'));
   const livesEl  = /** @type {HTMLElement} */ (document.getElementById('hud-lives'));
-  const waveEl   = /** @type {HTMLElement} */ (document.getElementById('hud-wave'));
-  const scoreEl  = /** @type {HTMLElement} */ (document.getElementById('hud-score'));
   const verEl    = /** @type {HTMLElement} */ (document.getElementById('hud-version'));
   const phaseEl  = /** @type {HTMLElement} */ (document.getElementById('hud-phase'));
+  const waveEyebrow = /** @type {HTMLElement} */ (document.getElementById('hud-wave-eyebrow'));
+  const waveFill = /** @type {HTMLElement} */ (document.getElementById('hud-wave-fill'));
+  const waveMetaLeft = /** @type {HTMLElement} */ (document.getElementById('hud-wave-meta-left'));
   const btnWave  = /** @type {HTMLButtonElement} */ (document.getElementById('btn-wave'));
   const btnPlace = /** @type {HTMLButtonElement} */ (document.getElementById('btn-place'));
   const btnSell  = /** @type {HTMLButtonElement} */ (document.getElementById('btn-sell'));
@@ -31,8 +32,16 @@ export function createHud() {
   const towerBtns = /** @type {HTMLElement} */ (document.getElementById('tower-buttons'));
   const upgBtns  = /** @type {HTMLElement} */ (document.getElementById('upgrade-buttons'));
   const towerInfo = /** @type {HTMLElement} */ (document.getElementById('tower-info'));
+  const towerName = /** @type {HTMLElement} */ (document.getElementById('tower-info-name'));
   const towerDesc = /** @type {HTMLElement} */ (document.getElementById('tower-desc'));
   const towerStats = /** @type {HTMLElement} */ (document.getElementById('tower-stats'));
+
+  // Inject icons into stat panels and action buttons (one-time)
+  setupStatIcon(livesEl, 'heart');
+  setupStatIcon(goldEl,  'coin');
+  if (btnBestiary && !btnBestiary.firstChild) btnBestiary.appendChild(icon('eye', { size: 16 }));
+  if (btnSave     && !btnSave.firstChild)     btnSave.appendChild(icon('save', { size: 16 }));
+  if (btnHome     && !btnHome.firstChild)     btnHome.appendChild(icon('home', { size: 16 }));
 
   /** @type {HudHandlers} */
   let handlers = emptyHandlers();
@@ -70,29 +79,32 @@ export function createHud() {
     closeBestiary();
   }
 
-  // Build pip contents once: icon + count span.
-  setupPip(goldEl,  'coin',      'gold');
-  setupPip(livesEl, 'heart',     'lives');
-  setupPip(waveEl,  'hourglass', 'wave');
-  setupPip(scoreEl, 'star',      'score');
-
   /** @param {GameState} state @param {Campaign} campaign */
   function update(state, campaign) {
     lastState = state;
     lastCampaign = campaign;
-    setPipValue(goldEl,  state.gold);
-    setPipValue(livesEl, state.lives);
-    setPipValue(waveEl,  state.wave);
-    setPipValue(scoreEl, state.score);
-    verEl.textContent   = 'v' + VERSION;
+    setStatValue(goldEl,  state.gold);
+    setStatValue(livesEl, state.lives);
+    verEl.textContent = 'v' + VERSION;
+    waveEyebrow.textContent = 'Wave ' + Math.max(1, state.wave) + (campaign.waves.list ? ' / ' + campaign.waves.list.length : '');
     phaseEl.textContent =
-      state.phase === 'PLACE' ? 'PLACE TOWERS' :
-      state.phase === 'WAVE'  ? 'WAVE ' + state.wave :
-                                 'GAME OVER';
+      state.phase === 'PLACE'    ? 'Place Towers' :
+      state.phase === 'WAVE'     ? 'Wave ' + state.wave + ' Incoming' :
+                                    'Game Over';
     phaseEl.style.color =
       state.phase === 'WAVE'     ? 'var(--ember-bright)' :
       state.phase === 'GAMEOVER' ? 'var(--ember-bright)' :
                                     'var(--verdant)';
+    waveMetaLeft.textContent = 'Score ' + state.score;
+
+    // Wave progress bar
+    const waveNum = Math.max(1, state.wave);
+    const w = state.phase === 'WAVE' ? getWaveConfig(campaign.waves, campaign.monsters, waveNum) : null;
+    const total = w ? w.counts.reduce((a, b) => a + b, 0) : 0;
+    const remaining = state.monsters.length;
+    const progress = total > 0 ? Math.max(0, Math.min(1, 1 - remaining / total)) : 0;
+    waveFill.style.width = (progress * 100).toFixed(1) + '%';
+    waveFill.style.opacity = state.phase === 'WAVE' ? '1' : '0.25';
   }
 
   /** @param {GameState} state @param {Campaign} campaign */
@@ -102,18 +114,28 @@ export function createHud() {
     towerBtns.innerHTML = '';
     campaign.towers.forEach((t, i) => {
       if (!isTowerUnlocked(campaign.waves, t, state.wave)) return;
-      let label = (i + 1) + ': ' + t.name + ' (' + t.cost + 'g)';
+      const isSelected = i === state.selectedTower;
+      let rot = '';
       if (t.attackDir === 'fixed') {
-        label += ' ' + ROT_NAMES[state.selectedTower === i ? state.placeRotation : 0];
+        rot = ROT_NAMES[isSelected ? state.placeRotation : 0];
       } else {
         const sw = t.sizeW || 2, sh = t.sizeH || 2;
-        if (state.selectedTower === i && sw !== sh) label += ' ' + ROT_NAMES[state.placeRotation];
+        if (isSelected && sw !== sh) rot = ROT_NAMES[state.placeRotation];
       }
       towerBtns.appendChild(button({
         'data-tower': i,
-        className: i === state.selectedTower ? 'selected' : '',
+        className: 'build-slot' + (isSelected ? ' selected' : ''),
         onClick: () => handlers.onSelectTowerType(i),
-      }, [label]));
+      }, [
+        span({ className: 'build-slot-index' }, [String(i + 1)]),
+        span({ className: 'build-slot-cost' }, [String(t.cost) + 'g']),
+        span({
+          className: 'build-slot-thumb',
+          style: { background: t.bg || 'var(--ink-700)', color: t.color || 'var(--parchment)' },
+        }, [t.letter || '?']),
+        span({ className: 'build-slot-name' }, [t.name]),
+        rot ? span({ className: 'build-slot-rot' }, [rot]) : null,
+      ]));
     });
     if (state.selectedTower >= 0 && !isTowerUnlocked(campaign.waves, campaign.towers[state.selectedTower], state.wave)) {
       for (let i = 0; i < campaign.towers.length; i++) {
@@ -126,14 +148,19 @@ export function createHud() {
     if (!state.selectedPlacedTower) showTowerPreview(campaign.towers[state.selectedTower]);
   }
 
-  /** Show description + stats for a tower def/node. */
+  /** Show description + stats for a tower def/node in the centre tray slot. */
   function showTowerPreview(node) {
-    if (!node) { towerInfo.style.display = 'none'; return; }
+    if (!node) {
+      towerName.textContent = '—';
+      towerDesc.style.display = 'none';
+      towerStats.style.display = 'none';
+      return;
+    }
+    towerName.textContent = node.name || 'Tower';
     towerDesc.textContent = node.desc || '';
     towerDesc.style.display = node.desc ? '' : 'none';
     towerStats.textContent = towerStatSummary(node);
-    towerStats.style.display = '';
-    towerInfo.style.display = '';
+    towerStats.style.display = towerStats.textContent ? '' : 'none';
   }
 
   /**
@@ -147,10 +174,6 @@ export function createHud() {
     towerBtns.style.display = hasSel ? 'none' : '';
     btnPlace.style.display  = hasSel ? 'none' : '';
     btnWave.style.display   = hasSel ? 'none' : '';
-    btnBestiary.style.display = hasSel ? 'none' : '';
-    btnSpeed.style.display   = hasSel ? 'none' : '';
-    if (btnSave) btnSave.style.display = hasSel ? 'none' : '';
-    if (btnHome) btnHome.style.display = hasSel ? 'none' : '';
 
     upgBtns.innerHTML = '';
 
@@ -158,22 +181,23 @@ export function createHud() {
       const tower = /** @type {import('./types.js').Tower} */ (state.selectedPlacedTower);
       const node = getTowerNode(campaign, tower);
       const refund = getSellRefund(state, campaign, tower);
-      btnSell.textContent = 'Sell ' + (node.name || '?') + ' (+' + refund + 'g)';
+      btnSell.textContent = 'Sell (+' + refund + 'g)';
       btnSell.style.display = '';
 
       const parts = [];
-      if (tower.kills)      parts.push(tower.kills + ' kills');
+      if (tower.kills)       parts.push(tower.kills + ' kills');
       if (tower.damageDealt) parts.push(Math.round(tower.damageDealt) + ' dmg');
-      if (tower.goldStolen) parts.push(tower.goldStolen + 'g stolen');
+      if (tower.goldStolen)  parts.push(tower.goldStolen + 'g stolen');
+      towerName.textContent = node.name || 'Tower';
       towerDesc.textContent = node.desc || '';
       towerDesc.style.display = node.desc ? '' : 'none';
       if (parts.length) {
         towerStats.textContent = parts.join('  ·  ');
         towerStats.style.display = '';
       } else {
-        towerStats.style.display = 'none';
+        towerStats.textContent = towerStatSummary(node);
+        towerStats.style.display = towerStats.textContent ? '' : 'none';
       }
-      towerInfo.style.display = (node.desc || parts.length) ? '' : 'none';
 
       if (node.upgrades && node.upgrades.length > 0) {
         const base = campaign.towers[tower.typeIdx];
@@ -181,7 +205,6 @@ export function createHud() {
         node.upgrades.forEach((_upg, i) => {
           const em = getMergedNode(base, basePath.concat(i));
           upgBtns.appendChild(button({
-            style: { background: '#1b5e20', borderColor: '#4caf50', color: '#fff' },
             onClick:      () => handlers.onUpgrade(i),
             onMouseEnter: () => showTowerPreview(em),
             onMouseLeave: () => refreshSelection(state, campaign),
@@ -213,19 +236,18 @@ export function createHud() {
   };
 }
 
-function setupPip(el, iconName, dataKey) {
-  if (el.dataset.pipReady === '1') return;
-  el.innerHTML = '';
-  el.appendChild(icon(iconName, { size: 12 }));
-  const v = document.createElement('span');
-  v.dataset.pipValue = dataKey;
-  v.textContent = '0';
-  el.appendChild(v);
-  el.dataset.pipReady = '1';
+function setupStatIcon(el, iconName) {
+  if (!el || el.dataset.statReady === '1') return;
+  const slot = el.querySelector('.hud-stat-icon');
+  if (slot) {
+    slot.innerHTML = '';
+    slot.appendChild(icon(iconName, { size: 18 }));
+  }
+  el.dataset.statReady = '1';
 }
 
-function setPipValue(el, n) {
-  const v = el.querySelector('span[data-pip-value]');
+function setStatValue(el, n) {
+  const v = el && el.querySelector('.hud-stat-value');
   if (v) v.textContent = String(n);
 }
 

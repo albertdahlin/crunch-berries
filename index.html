@@ -15,13 +15,34 @@
 
 <div id="hud">
   <div class="hud-stats">
-    <span class="pip pip-gold"  id="hud-gold">G:0</span>
-    <span class="pip pip-ember" id="hud-lives">L:0</span>
-    <span class="pip pip-moon"  id="hud-wave">W:0</span>
-    <span class="pip"           id="hud-score">S:0</span>
+    <div class="hud-stat hud-stat-ember" id="hud-lives">
+      <span class="hud-stat-icon"></span>
+      <span class="hud-stat-label">Lives</span>
+      <span class="hud-stat-value">0</span>
+    </div>
+    <div class="hud-stat hud-stat-gold" id="hud-gold">
+      <span class="hud-stat-icon"></span>
+      <span class="hud-stat-label">Gold</span>
+      <span class="hud-stat-value">0</span>
+    </div>
   </div>
-  <span class="hud-version" id="hud-version"></span>
-  <span id="hud-phase"></span>
+  <div class="hud-wave panel panel-ornate">
+    <div class="hud-wave-eyebrow" id="hud-wave-eyebrow">Wave 0</div>
+    <div id="hud-phase">PLACE TOWERS</div>
+    <div class="hud-wave-bar"><div class="hud-wave-bar-fill" id="hud-wave-fill"></div></div>
+    <div class="hud-wave-meta">
+      <span id="hud-wave-meta-left">Score 0</span>
+      <span class="hud-version" id="hud-version"></span>
+    </div>
+  </div>
+  <div class="hud-actions">
+    <button class="btn btn-icon" id="btn-bestiary" title="Bestiary (B)"></button>
+    <button class="btn btn-icon" id="btn-speed"    title="Speed">1x</button>
+    <button class="btn btn-icon" id="btn-save"     title="Save"></button>
+    <button class="btn btn-icon" id="btn-home"     title="Home"></button>
+  </div>
+  <span id="hud-wave"     class="sr-only">0</span>
+  <span id="hud-score"    class="sr-only">0</span>
 </div>
 
 <div id="home"></div>
@@ -49,21 +70,21 @@
 </script>
 
 <div id="ui">
-  <div id="tower-info" style="display:none">
-    <div id="tower-desc"></div>
-    <div id="tower-stats"></div>
-  </div>
-  <div class="ui-row">
-    <span id="tower-buttons"></span>
-    <button id="btn-place">Place</button>
-    <span id="upgrade-buttons"></span>
-    <button id="btn-rotate" style="display:none">Rotate (R)</button>
-    <button id="btn-sell" style="display:none">Sell</button>
-    <button id="btn-wave">Wave (W)</button>
-    <button id="btn-bestiary">Bestiary (B)</button>
-    <button id="btn-speed">1x</button>
-    <button id="btn-save">Save</button>
-    <button id="btn-home">Home</button>
+  <div class="ui-tray panel panel-ornate">
+    <div class="ui-tray-slots" id="tower-buttons"></div>
+    <div class="ui-tray-info" id="tower-info">
+      <div class="ui-tray-info-label">Selected</div>
+      <div class="ui-tray-info-name" id="tower-info-name">—</div>
+      <div id="tower-desc"></div>
+      <div id="tower-stats"></div>
+      <div id="upgrade-buttons"></div>
+    </div>
+    <div class="ui-tray-actions">
+      <button id="btn-rotate" style="display:none">Rotate (R)</button>
+      <button id="btn-sell"   style="display:none">Sell</button>
+      <button id="btn-place">Place</button>
+      <button id="btn-wave">Next Wave (W)</button>
+    </div>
   </div>
 </div>
 
