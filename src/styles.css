@@ -1217,40 +1217,38 @@ canvas {
 
   /* Home: hero + menu rail */
   #home {
-    padding: 64px 80px;
-    align-items: stretch;
+    padding: 56px 48px;
+    align-items: center;
+    justify-content: center;
   }
   .home-grid {
     display: grid;
-    grid-template-columns: 1.2fr 1fr;
-    gap: 64px;
-    width: 100%;
-    max-width: 1100px;
-    margin: 0 auto;
+    grid-template-columns: minmax(0, 520px) 380px;
+    gap: 56px;
+    width: auto;
+    max-width: none;
+    margin: 0;
     align-items: center;
-    flex: 1;
   }
   .home-hero {
     align-items: flex-start;
     text-align: left;
     margin-bottom: 0;
+    max-width: none;
   }
-  .home-title { font-size: 96px; }
-  .home-divider { width: 380px; margin: 24px 0; }
+  .home-title { font-size: clamp(64px, 6.5vw, 96px); }
+  .home-divider { width: 320px; margin: 24px 0; }
   .home-blurb { max-width: 480px; font-size: 18px; }
-  .home-cta {
-    display: flex;
-    gap: 10px;
-    margin-top: 30px;
+  .ms-list {
+    max-width: 380px;
+    width: 380px;
+    align-self: center;
+    justify-self: end;
   }
-  .home-cta-meta {
-    margin-top: 18px;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: 0.22em;
-    color: var(--parchment-700);
+  #home .ms-version {
+    margin-top: 36px;
+    align-self: center;
   }
-  .ms-list { max-width: 380px; align-self: end; }
 
   /* List screens centered */
   #screen-list {
