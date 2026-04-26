@@ -660,33 +660,28 @@ export function createWebGLRenderer(canvas) {
     const g = new THREE.Group();
     const baseColor = lambertMat(node.bg || '#1565c0');
     const accent    = lambertMat(node.color || '#4fc3f7');
-    // Stone footing
-    const base = outlinedMesh(boxGeom, baseColor);
-    base.scale.set(size.w * 0.9, 0.3, size.h * 0.9);
-    base.position.y = 0.15;
-    g.add(base);
-    // Body — square torso
+    // No base plate — soldier stands directly on the tile.
     const torso = outlinedMesh(boxGeom, accent);
     torso.scale.set(0.45, 0.45, 0.32);
-    torso.position.y = 0.30 + 0.225;
+    torso.position.y = 0.225;
     g.add(torso);
     // Head — small sphere
     const head = outlinedMesh(headGeom, lambertMat('#e1c28a'));
     head.scale.set(1.05, 1.05, 1.05);
-    head.position.y = 0.30 + 0.45 + 0.18;
+    head.position.y = 0.45 + 0.18;
     g.add(head);
     // Conical helmet
     const helm = outlinedMesh(helmetGeom, baseColor);
-    helm.position.y = 0.30 + 0.45 + 0.36;
+    helm.position.y = 0.45 + 0.36;
     g.add(helm);
     // Spear (stationary on the right side)
     const shaft = outlinedMesh(spearGeom, lambertMat('#5d4037'));
-    shaft.position.set(0.32, 0.30 + 0.40, 0);
+    shaft.position.set(0.32, 0.40, 0);
     g.add(shaft);
     const tip = outlinedMesh(spearTipGeom, baseColor);
-    tip.position.set(0.32, 0.30 + 0.78, 0);
+    tip.position.set(0.32, 0.78, 0);
     g.add(tip);
-    g.userData.topY = 0.30 + 0.92;
+    g.userData.topY = 0.92;
     return g;
   }
 
@@ -694,26 +689,21 @@ export function createWebGLRenderer(canvas) {
     const g = new THREE.Group();
     const baseColor = lambertMat(node.bg || '#bf360c');
     const accent    = lambertMat(node.color || '#ff8a65');
-    // Hex-ish wide base
-    const base = outlinedMesh(boxGeom, baseColor);
-    base.scale.set(size.w * 0.92, 0.28, size.h * 0.92);
-    base.position.y = 0.14;
-    g.add(base);
-    // Stepped pedestal
+    // No base plate — small pedestal grounds the spire.
     const ped = outlinedMesh(boxGeom, baseColor);
     ped.scale.set(size.w * 0.72, 0.22, size.h * 0.72);
-    ped.position.y = 0.28 + 0.11;
+    ped.position.y = 0.11;
     g.add(ped);
     // Tall slender spire
     const spire = outlinedMesh(coneGeom, accent);
     spire.scale.set(0.85, 1.4, 0.85);
-    spire.position.y = 0.28 + 0.22 + 0.49;
+    spire.position.y = 0.22 + 0.49;
     g.add(spire);
     // Floating orb — emissive accent
     const orb = new THREE.Mesh(orbGeom, basicMat(node.color || '#ff8a65'));
-    orb.position.y = 0.28 + 0.22 + 1.10;
+    orb.position.y = 0.22 + 1.10;
     g.add(orb);
-    g.userData.topY = 0.28 + 0.22 + 1.16;
+    g.userData.topY = 0.22 + 1.16;
     return g;
   }
 
