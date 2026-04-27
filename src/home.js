@@ -31,6 +31,7 @@ import { loadAppSettings, saveAppSettings } from './app-settings.js';
 import { openMapEditor } from './edit-map.js';
 import { openCampaignEditor } from './edit-campaign.js';
 import { createRouter } from './router.js';
+import { createTransitions } from './transitions.js';
 
 /**
  * @param {{canvas: HTMLCanvasElement, renderer: Renderer, hud: Hud}} opts
@@ -46,8 +47,14 @@ export function createScreenManager({ canvas, renderer, hud }) {
   /** @type {?string} */ let currentGameKey = null;
   /** @type {?{mapDef: MapDef, campaign: Campaign}} */ let pendingMapEditorPlay = null;
 
-  /** @type {ReturnType<typeof createRouter>} */
-  const router = createRouter([
+  const transitions = createTransitions();
+  // Routes flagged `board: true` use the gold-band wipe; otherwise we
+  // crossfade. The very first dispatch on page load skips the transition.
+  let isFirstDispatch = true;
+  let lastBoardState = false;
+
+  /** @type {{ pattern: string, handler: (params: any) => void, board?: boolean }[]} */
+  const RAW_ROUTES = [
     { pattern: '/',                         handler: renderHome },
     { pattern: '/new-game',                 handler: renderPickCampaign },
     { pattern: '/new-game/:campaignId',     handler: (p) => renderPickMap(p.campaignId) },
@@ -59,9 +66,29 @@ export function createScreenManager({ canvas, renderer, hud }) {
     { pattern: '/campaigns/new',            handler: renderCampaignEditorNew },
     { pattern: '/campaigns/:campaignId',    handler: (p) => renderCampaignEditor(p.campaignId) },
     { pattern: '/settings',                 handler: renderSettingsScreen },
-    { pattern: '/play/:campaignId/:mapId',  handler: (p) => renderPlay(p.campaignId, p.mapId) },
-    { pattern: '/resume/:saveId',           handler: (p) => renderResume(p.saveId) },
-  ]);
+    { pattern: '/play/:campaignId/:mapId',  handler: (p) => renderPlay(p.campaignId, p.mapId), board: true },
+    { pattern: '/resume/:saveId',           handler: (p) => renderResume(p.saveId),            board: true },
+  ];
+
+  /** @type {ReturnType<typeof createRouter>} */
+  const router = createRouter(RAW_ROUTES.map(r => ({
+    pattern: r.pattern,
+    handler: (params) => {
+      const willBeBoard = !!r.board;
+      if (isFirstDispatch) {
+        isFirstDispatch = false;
+        lastBoardState = willBeBoard;
+        r.handler(params);
+        return;
+      }
+      const useBand = willBeBoard || lastBoardState;
+      lastBoardState = willBeBoard;
+      transitions.runTransition({
+        kind: useBand ? 'band' : 'crossfade',
+        doSwap: () => r.handler(params),
+      });
+    },
+  })));
 
   function hideAll() {
     homeEl.style.display = 'none';

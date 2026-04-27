@@ -1497,3 +1497,142 @@ canvas {
 .gap-md { gap: 16px; }
 .gap-lg { gap: 24px; }
 .sr-only { position: absolute; left: -9999px; }
+
+/* ==================== SCREEN TRANSITIONS ==================== */
+/* Default: crossfade + subtle scale (outgoing 1.0 -> 0.96, fades; incoming
+   1.04 -> 1.0, fades in from a soft blur).
+   Game-board enter/leave: ornamental gold-band wipe overlay. */
+
+@keyframes tx-enter {
+  from { opacity: 0; transform: scale(1.04); filter: blur(6px); }
+  to   { opacity: 1; transform: scale(1);    filter: blur(0); }
+}
+@keyframes tx-exit {
+  from { opacity: 1; transform: scale(1);    filter: blur(0); }
+  to   { opacity: 0; transform: scale(0.96); filter: blur(4px); }
+}
+
+/* Apply to the *currently visible* screen for one animation cycle. */
+.tx-enter {
+  animation: tx-enter 460ms cubic-bezier(.2,.7,.2,1) forwards;
+  will-change: opacity, transform, filter;
+}
+/* The fixed-position snapshot overlay used while the original screen is
+   already hidden / replaced. Sits above the new screen and fades out. */
+.tx-clone {
+  position: fixed;
+  inset: 0;
+  z-index: 9100;
+  pointer-events: none;
+  overflow: hidden;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  background: var(--ink-900);
+}
+.tx-clone.tx-exit {
+  animation: tx-exit 360ms cubic-bezier(.4,.1,.7,.2) forwards;
+  will-change: opacity, transform, filter;
+}
+
+/* Ornamental gold-band wipe — used when entering or leaving /play. */
+.tx-band {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9200;
+  overflow: hidden;
+  display: none;
+}
+.tx-band.is-active { display: block; }
+
+.tx-band-top, .tx-band-bot {
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  height: 60%;
+  background:
+    radial-gradient(circle at 20% 50%, oklch(0.86 0.13 88 / 0.2) 0 6px, transparent 8px),
+    radial-gradient(circle at 50% 50%, oklch(0.86 0.13 88 / 0.2) 0 4px, transparent 6px),
+    radial-gradient(circle at 80% 50%, oklch(0.86 0.13 88 / 0.2) 0 6px, transparent 8px),
+    linear-gradient(180deg,
+      oklch(0.10 0.015 275) 0%,
+      oklch(0.18 0.025 280) 40%,
+      oklch(0.32 0.06 60) 60%,
+      oklch(0.62 0.17 28) 80%,
+      oklch(0.86 0.13 88) 100%);
+  background-size: 80px 100%, 80px 100%, 80px 100%, 100% 100%;
+  border-bottom: 2px solid oklch(0.86 0.13 88 / 0.7);
+  box-shadow: 0 8px 24px oklch(0.62 0.17 28 / 0.6);
+}
+.tx-band-top {
+  top: 0;
+  transform: translateY(-100%);
+}
+.tx-band-bot {
+  bottom: 0;
+  transform: translateY(100%) scaleY(-1);
+  border-bottom: none;
+  border-top: 2px solid oklch(0.86 0.13 88 / 0.7);
+}
+
+.tx-band-seam {
+  position: absolute;
+  left: -10%; right: -10%;
+  top: 50%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, oklch(0.92 0.16 88), transparent);
+  box-shadow: 0 0 22px oklch(0.86 0.13 88 / 0.9);
+  opacity: 0;
+  transform: translateY(-50%);
+}
+
+.tx-band-glyph {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 64px; height: 64px;
+  transform: translate(-50%, -50%) scale(0);
+  color: oklch(0.92 0.16 88);
+  filter: drop-shadow(0 0 16px oklch(0.86 0.13 88 / 0.9));
+  opacity: 0;
+}
+
+.tx-band.is-active .tx-band-top   { animation: tx-band-down 800ms cubic-bezier(.6,.05,.3,1) forwards; }
+.tx-band.is-active .tx-band-bot   { animation: tx-band-up   800ms cubic-bezier(.6,.05,.3,1) forwards; }
+.tx-band.is-active .tx-band-seam  { animation: tx-band-seam 800ms ease-out forwards; }
+.tx-band.is-active .tx-band-glyph { animation: tx-band-glyph 800ms cubic-bezier(.4,1.6,.4,1) forwards; }
+
+@keyframes tx-band-down {
+  0%   { transform: translateY(-100%); }
+  45%  { transform: translateY(-12%); }
+  55%  { transform: translateY(-12%); }
+  100% { transform: translateY(-100%); }
+}
+@keyframes tx-band-up {
+  0%   { transform: translateY(100%) scaleY(-1); }
+  45%  { transform: translateY(12%) scaleY(-1); }
+  55%  { transform: translateY(12%) scaleY(-1); }
+  100% { transform: translateY(100%) scaleY(-1); }
+}
+@keyframes tx-band-seam {
+  0%, 30% { opacity: 0; transform: translateY(-50%) scaleX(0); }
+  50%     { opacity: 1; transform: translateY(-50%) scaleX(1); }
+  70%     { opacity: 1; transform: translateY(-50%) scaleX(1); }
+  100%    { opacity: 0; transform: translateY(-50%) scaleX(1); }
+}
+@keyframes tx-band-glyph {
+  0%, 30% { opacity: 0; transform: translate(-50%, -50%) scale(0)   rotate(-30deg); }
+  50%     { opacity: 1; transform: translate(-50%, -50%) scale(1)   rotate(0deg); }
+  70%     { opacity: 1; transform: translate(-50%, -50%) scale(1)   rotate(0deg); }
+  100%    { opacity: 0; transform: translate(-50%, -50%) scale(1.2) rotate(20deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tx-enter,
+  .tx-clone.tx-exit,
+  .tx-band.is-active .tx-band-top,
+  .tx-band.is-active .tx-band-bot,
+  .tx-band.is-active .tx-band-seam,
+  .tx-band.is-active .tx-band-glyph { animation: none; }
+  .tx-clone { display: none !important; }
+}
