@@ -45,6 +45,11 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* Reserve scrollbar gutter on classic-scrollbar platforms (Linux Chrome,
+   Windows) so content doesn't shift horizontally when the scrollbar
+   appears or disappears across screens of different heights. */
+html { scrollbar-gutter: stable; }
+
 body {
   background: var(--ink-900);
   color: var(--parchment);
@@ -61,7 +66,7 @@ body {
 
 canvas {
   display: block;
-  width: 100vw;
+  width: 100%;
   background: var(--ink-900);
 }
 
