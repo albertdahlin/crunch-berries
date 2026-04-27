@@ -1517,19 +1517,20 @@ canvas {
   animation: tx-enter 460ms cubic-bezier(.2,.7,.2,1) forwards;
   will-change: opacity, transform, filter;
 }
-/* The fixed-position snapshot overlay used while the original screen is
-   already hidden / replaced. Sits above the new screen and fades out. */
+/* Snapshot overlay used while the original screen is being replaced. The
+   clone keeps its source id, so the original screen's layout rules (padding,
+   align-items, min-height) still apply — only positioning and z-stacking
+   come from this class. !important on display defends against the base
+   `#home { display: none }` rules that would otherwise hide the clone. */
 .tx-clone {
-  position: fixed;
-  inset: 0;
-  z-index: 9100;
-  pointer-events: none;
-  overflow: hidden;
-  display: flex !important;
-  flex-direction: column;
-  align-items: center;
-  background: var(--ink-900);
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9100 !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
+  margin: 0 !important;
 }
+.tx-clone[id] { display: flex !important; }
 .tx-clone.tx-exit {
   animation: tx-exit 360ms cubic-bezier(.4,.1,.7,.2) forwards;
   will-change: opacity, transform, filter;

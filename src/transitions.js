@@ -63,16 +63,17 @@ export function createTransitions() {
   }
 
   /**
-   * Snapshot the visible screen as a fixed-position overlay clone. The clone
-   * removes the original's id so duplicate-id collisions are avoided while it
-   * lives. Internal layout still works because we copy the original's content
-   * verbatim and the clone's own .tx-clone class lays it out as a stage.
+   * Snapshot the visible screen as a fixed-position overlay clone. We keep
+   * the original's id on the clone so its screen-scoped CSS (padding,
+   * min-height, layout) still applies — without that the children collapse
+   * to the top of the viewport. Two elements share the id for ~360ms, but
+   * home.js bound its element references at startup and the clone is
+   * pointer-events:none, so nothing else queries by id during the window.
    * @param {HTMLElement} src
    * @returns {HTMLElement}
    */
   function snapshot(src) {
     const clone = /** @type {HTMLElement} */ (src.cloneNode(true));
-    clone.removeAttribute('id');
     clone.classList.add('tx-clone');
     document.body.appendChild(clone);
     return clone;
